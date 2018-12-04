@@ -1,0 +1,11 @@
+*.so
+bin
+lib
+data/*
+deps/*
+*.a
+seq2seq
+nohup.out
+.vs/*
+.vscode/*
+obj/*
