@@ -1,8 +1,9 @@
 #include "data_reader.h"
-#include "all_computes.h"
+#include "init.h"
 // #include "rnn.h"
 #include "model.h"
 #include <gflags/gflags.h>
+#include <sys/stat.h>
 
 
 DEFINE_double(lr, 0.5, "learning rate");
@@ -22,6 +23,7 @@ DEFINE_int32(max_source_len, 50, "max source language length");
 DEFINE_int32(max_target_len, 50, "max target language length");
 DEFINE_string(loss_type,"cross_entropy","focal loss/cross_entropy loss");
 DEFINE_string(opt_type,"sgd","sgd/sgd_m loss");
+
 namespace seq2seq{
     void run_train(){
         //===========prepare data============
@@ -40,7 +42,7 @@ namespace seq2seq{
         Seq2SeqModel model;
         model.set_param(reader.source_dict_size(), reader.target_dict_size(), FLAGS_batch_size, FLAGS_emb_size, FLAGS_hidden_size);
 
-        model.init(max_encoder_len, max_decoder_len,FLAGS_loss_type, FLAGS_opt_type, FLAGS_lr);
+        model.init(max_encoder_len, max_decoder_len, FLAGS_loss_type, FLAGS_opt_type, FLAGS_lr);
         fprintf(stderr, "init ended\n");
 
         if (FLAGS_load_model_dir.size() > 0){
@@ -54,9 +56,9 @@ namespace seq2seq{
         decoder_input.set_dim(max_decoder_len, FLAGS_batch_size);
         decoder_target.set_dim(max_decoder_len, FLAGS_batch_size);
 
-        encoder_input.malloc();
-        decoder_input.malloc();
-        decoder_target.malloc();
+        encoder_input.malloced();
+        decoder_input.malloced();
+        decoder_target.malloced();
 
         //start training
         fprintf(stderr, "start training....\n");
@@ -73,8 +75,9 @@ namespace seq2seq{
             }
             // print loss over epoch
             float loss=sum_loss / iter;
-            fprintf(stdout, "epoch=%d, iter=%d, lr=%6f, loss=%6f, ppl=%6f\n", epoch + 1, iter, model.lr, loss , exp(loss));
-            model._lr *= FLAGS_lr_decay;
+            fprintf(stdout, "epoch=%d, iter=%d, lr=%6f, loss=%6f, ppl=%6f\n",
+                        epoch + 1, iter, model.optimizer._lr, loss , exp(loss));
+            model.set_lr_decay(FLAGS_lr_decay);
             reader.shulffle_and_bucket();                                       // reload dataset
             model.save_model(FLAGS_save_model_dir + "/epoch_" + to_string(epoch + 1)); // save current model.
         }
@@ -86,37 +89,38 @@ namespace seq2seq{
         DataReader reader;
         string source_vocab = FLAGS_train_data_dir + "/source.vocab";
         string target_vocab = FLAGS_train_data_dir + "/target.vocab";
+        int batch_size=1;
         reader.load_vocab(source_vocab,target_vocab);
-
-        fprintf(stderr, "source dict size : %d, target dict size: %d\n",
-                reader.source_dict_size(), reader.target_dict_size());
 
         int max_encoder_len = FLAGS_max_source_len;
         // target will addes eos and go_id
         int max_decoder_len = FLAGS_max_target_len + 2;
-        reader.load_all_data(FLAGS_train_data_dir + "/train.txt",
-                FLAGS_batch_size, FLAGS_max_source_len, FLAGS_max_target_len);
+
+        fprintf(stderr, "source dict size : %d, target dict size: %d\n",
+                reader.source_dict_size(), reader.target_dict_size());
+        reader.load_data(FLAGS_train_data_dir + "/test.txt",
+                batch_size, FLAGS_max_source_len, FLAGS_max_target_len);
 
         //================initialize model================
         Seq2SeqModel model;
-        model.set_param(reader.source_dict_size(), reader.target_dict_size(),FLAGS_lr,FLAGS_batch_size, FLAGS_emb_size, FLAGS_hidden_size);
 
-        model.init(max_encoder_len, max_decoder_len,"cross_entropy", FLAGS_opt_type);
+        model.set_param(reader.source_dict_size(), reader.target_dict_size(), batch_size, FLAGS_emb_size, FLAGS_hidden_size);
+        model.init(max_encoder_len, max_decoder_len, "cross_entropy", FLAGS_opt_type, 0.0);
         fprintf(stderr, "init ended\n");
 
         if (FLAGS_load_model_dir.size() > 0){
-            model.load_model(FLAGS_load_model_dir.c_str());
+            model.load_model(FLAGS_load_model_dir);
         }
 
         Blob encoder_input, decoder_input, decoder_target;
 
-        encoder_input.set_dim(max_encoder_len, FLAGS_batch_size);
-        decoder_input.set_dim(max_decoder_len, FLAGS_batch_size);
-        decoder_target.set_dim(max_decoder_len, FLAGS_batch_size);
+        encoder_input.set_dim(max_encoder_len, batch_size);
+        decoder_input.set_dim(max_decoder_len, batch_size);
+        decoder_target.set_dim(max_decoder_len, batch_size);
 
-        encoder_input.malloc();
-        decoder_input.malloc();
-        decoder_target.malloc();
+        encoder_input.malloced();
+        decoder_input.malloced();
+        decoder_target.malloced();
 
         vector<float> losses;
         //====================start optimization===========
@@ -136,16 +140,12 @@ namespace seq2seq{
                 checkpoint_avg_loss = 0.0;
 
                 float perplexity = exp(loss);
-                fprintf(stderr, " iter= %d, loss = %6f, ppl = %6f\n",
-                        iter, loss, perplexity);
+                fprintf(stderr, " iter= %d, loss = %6f, ppl = %6f\n", iter, loss, perplexity);
 
                 losses.push_back(loss);
             }
         }
-        string to_save_dir = FLAGS_save_model_dir + "/epoch_" ;
-        mkdir(to_save_dir.c_str(), 0777);
-        fprintf(stderr, "saving model to %s\n", to_save_dir.c_str());
-        model.save_model(to_save_dir.c_str());
+        model.save_model(FLAGS_save_model_dir + "/inference");
     }
 }// namespace seq2seq
 
@@ -159,7 +159,7 @@ int main(int argc, char **argv){
     google::SetVersionString("0.0.1");
     google::ParseCommandLineFlags(&argc, &argv, true);
     cudaErrCheck(cudaSetDevice(FLAGS_device));
-    seq2seq::g_assert=GlobalAssets::instance();
+
 
     if (FLAGS_train_data_dir.size() == 0 || FLAGS_save_model_dir.size() == 0){
         fprintf(stderr, "you must set train_data_dir and save_model_dir\n"
@@ -177,7 +177,7 @@ int main(int argc, char **argv){
     }else{
         seq2seq::run_inference();
     }
-    // seq2seq::g_assert.free();
+
     google::ShutDownCommandLineFlags();
     return 0;
 }

@@ -2,21 +2,19 @@
 #include <sys/stat.h>
 
 namespace seq2seq{
-    void Seq2SeqModel::init(int max_encoder_seq_len, int max_decoder_seq_len, string loss_type, string optimizer_type, float lr){
-        _alignment_size = _hidden_size;
-        _maxout_size = _hidden_size;
-
-        encoder_emb.init(_source_voc_size, _emb_size);
-        decoder_emb.init(_target_voc_size, _emb_size);
-        encoder_rnn.init(_batch_size, _hidden_size, _emb_size, true, 1, true, CUDNN_GRU, 0.0);
-        decoder_rnn.init(_batch_size, _hidden_size, _emb_size, _alignment_size, _maxout_size, max_encoder_seq_len, max_decoder_seq_len);
-        fc_compute.init(_maxout_size, _target_voc_size);
-        softmax.init(CUDNN_SOFTMAX_LOG);
+    void Seq2SeqModel::init(int encoder_seq_len, int decoder_seq_len, string loss_type, string optimizer_type, float lr){
+        // init layers
+        encoder_emb_layer.init(_source_voc_size, _emb_size);
+        decoder_emb_layer.init(_target_voc_size, _emb_size);
+        encoder_rnn_layer.init(_batch_size, _hidden_size, _emb_size, true, 1, true, CUDNN_GRU, 0.0);
+        decoder_rnn_layer.init(_batch_size, _hidden_size, _emb_size, _alignment_size, _maxout_size, encoder_seq_len, decoder_seq_len);
+        linear_layer.init(_maxout_size, _target_voc_size);
+        softmax_layer.init(CUDNN_SOFTMAX_LOG);
 
         if(loss_type.compare("cross_entropy")==0){
-            loss_compute.init(DataReader::PAD_ID,LOSS_TYPE::CROSS_ENTROPY);
+            loss_layer.init(DataReader::PAD_ID, LOSS_TYPE::CROSS_ENTROPY);
         }else if(loss_type.compare("focal_loss")==0){
-            loss_compute.init(DataReader::PAD_ID,LOSS_TYPE::FOCAL_LOSS);
+            loss_layer.init(DataReader::PAD_ID, LOSS_TYPE::FOCAL_LOSS);
         }
 
         if(optimizer_type.compare("sgd")==0){
@@ -33,122 +31,120 @@ namespace seq2seq{
             optimizer.init(lr, OPTIMIZER_TYPE::NESTROV);
         }
 
+        // init intermedia blobs
+        encoder_emb_blob.set_dim(encoder_seq_len, _batch_size, _emb_size);
+        encoder_emb_blob.malloced();
 
-        // prepare intermedia blobs
-        encoder_emb_blob.set_dim(max_encoder_seq_len, _batch_size, _emb_size);
-        encoder_emb_blob.malloc_data();
+        decoder_emb_blob.set_dim(decoder_seq_len, _batch_size, _emb_size);
+        decoder_emb_blob.malloced();
 
-        decoder_emb_blob.set_dim(max_decoder_seq_len, _batch_size, _emb_size);
-        decoder_emb_blob.malloc_data();
+        encoder_rnn_blob.set_dim(encoder_seq_len, _batch_size, 2 * _hidden_size);
+        encoder_rnn_blob.malloced();
 
-        encoder_rnn_blob.set_dim(max_encoder_seq_len, _batch_size, 2 * _hidden_size);
-        encoder_rnn_blob.malloc_data();
+        encoder_rnn_final_hidden.set_dim(_batch_size, 2 * _hidden_size);
+        encoder_rnn_final_hidden.malloced();
 
-        encoder_rnn_final_hidden.set_dim(batch_size, 2 * _hidden_size);
-        encoder_rnn_final_hidden.malloc_data();
+        decoder_rnn_blob.set_dim(decoder_seq_len, _batch_size, _hidden_size);
+        decoder_rnn_blob.malloced();
 
-        decoder_rnn_blob.set_dim(max_decoder_seq_len, _batch_size, _hidden_size);
-        decoder_rnn_blob.malloc_data();
+        presoftmax_blob.set_dim(decoder_seq_len * _batch_size, _target_voc_size);
+        presoftmax_blob.malloced();
 
-        presoftmax_blob.set_dim(max_decoder_seq_len * _batch_size, _target_voc_size);
-        presoftmax_blob.malloc_data();
+        softmax_result_blob.set_dim(decoder_seq_len * _batch_size, _target_voc_size);
+        softmax_result_blob.malloced();
 
-        softmax_result_blob.set_dim(max_decoder_seq_len * _batch_size, _target_voc_size);
-        softmax_result_blob.malloc_data();
+        loss_blob.set_dim(decoder_seq_len * _batch_size, 1);
+        loss_blob.malloced();
 
-        loss_blob.set_dim(max_decoder_seq_len * _batch_size, 1);
-        loss_blob.malloc_data();
-
-        _param_blobs.push_back(fc_compute.get_w());
-        _param_blobs.push_back(fc_compute.get_b());
-        _param_blobs.push_back(decoder_rnn.param_w());
-        _param_blobs.push_back(decoder_rnn.param_u());
-        _param_blobs.push_back(decoder_rnn.param_c());
-        _param_blobs.push_back(decoder_rnn.param_att_w());
-        _param_blobs.push_back(decoder_rnn.param_att_u());
-        _param_blobs.push_back(decoder_rnn.param_att_v());
-        _param_blobs.push_back(decoder_rnn.param_m_u());
-        _param_blobs.push_back(decoder_rnn.param_m_v());
-        _param_blobs.push_back(decoder_rnn.param_m_c());
-        _param_blobs.push_back(encoder_rnn.get_param());
-        _param_blobs.push_back(decoder_emb.get_w());
-        _param_blobs.push_back(encoder_emb.get_w());
+        _param_blobs.push_back(linear_layer.get_w());
+        _param_blobs.push_back(linear_layer.get_b());
+        _param_blobs.push_back(decoder_rnn_layer.param_w());
+        _param_blobs.push_back(decoder_rnn_layer.param_u());
+        _param_blobs.push_back(decoder_rnn_layer.param_c());
+        _param_blobs.push_back(decoder_rnn_layer.param_att_w());
+        _param_blobs.push_back(decoder_rnn_layer.param_att_u());
+        _param_blobs.push_back(decoder_rnn_layer.param_att_v());
+        _param_blobs.push_back(decoder_rnn_layer.param_m_u());
+        _param_blobs.push_back(decoder_rnn_layer.param_m_v());
+        _param_blobs.push_back(decoder_rnn_layer.param_m_c());
+        _param_blobs.push_back(encoder_rnn_layer.get_param());
+        _param_blobs.push_back(decoder_emb_layer.get_w());
+        _param_blobs.push_back(encoder_emb_layer.get_w());
     }
 
     float Seq2SeqModel::forward(Blob *encoder_input, Blob *decoder_input, Blob *decoder_target){
         // seq_len * batch * emb_size
-        encoder_emb_blob.set_dim(encoder_input->dim0, encoder_input->dim1, emb_size);
-        encoder_emb.forward(encoder_input, &encoder_emb_blob);
+        encoder_emb_blob.set_dim(encoder_input->dim0, encoder_input->dim1, _emb_size);
+        encoder_emb_layer.forward(encoder_input, &encoder_emb_blob);
 
         // seq_len * batch * emb_size
-        decoder_emb_blob.set_dim(decoder_input->dim0, decoder_input->dim1, emb_size);
-        decoder_emb.forward(decoder_input, &decoder_emb_blob);
+        decoder_emb_blob.set_dim(decoder_input->dim0, decoder_input->dim1, _emb_size);
+        decoder_emb_layer.forward(decoder_input, &decoder_emb_blob);
 
         // seq_len * batch *  2 * hidden_size
-        encoder_rnn_blob.set_dim(encoder_emb_blob.dim0, encoder_emb_blob.dim1, 2 * hidden_size);
+        encoder_rnn_blob.set_dim(encoder_emb_blob.dim0, encoder_emb_blob.dim1, 2 * _hidden_size);
 
         // batch * 2 * hidden_size
-        encoder_rnn_final_hidden.set_dim(encoder_emb_blob.dim1, 2 * hidden_size,1);
-        encoder_rnn.forward(&encoder_emb_blob, &encoder_rnn_blob, NULL,NULL, NULL);
+        encoder_rnn_final_hidden.set_dim(encoder_emb_blob.dim1, 2 * _hidden_size,1);
+        encoder_rnn_layer.forward(&encoder_emb_blob, &encoder_rnn_blob, NULL,NULL, NULL);
 
         // seq_len * batch * hidden_size
-        decoder_rnn_blob.set_dim(decoder_emb_blob.dim0, decoder_emb_blob.dim1, hidden_size);
-        decoder_rnn.forward(&decoder_emb_blob, &encoder_rnn_blob, &decoder_rnn_blob);
+        decoder_rnn_blob.set_dim(decoder_emb_blob.dim0, decoder_emb_blob.dim1, _hidden_size);
+        decoder_rnn_layer.forward(&decoder_emb_blob, &encoder_rnn_blob, &decoder_rnn_blob);
 
         // before fc, reshpae the input to (seq_len * batch) * hidden_size
         decoder_rnn_blob.set_dim(decoder_rnn_blob.dim0 * decoder_rnn_blob.dim1, decoder_rnn_blob.dim2, 1);
 
         // result shape: (seq_len * batch) * target_voc_size
-        presoftmax_blob.set_dim(decoder_rnn_blob.dim0, target_voc_size);
-        fc_compute.forward(&decoder_rnn_blob, &presoftmax_blob);
+        presoftmax_blob.set_dim(decoder_rnn_blob.dim0, _target_voc_size);
+        linear_layer.forward(&decoder_rnn_blob, &presoftmax_blob);
 
         // shape: (seq_len * batch) * target_voc_size
         softmax_result_blob.set_dim(presoftmax_blob.dim0, presoftmax_blob.dim1);
-        softmax.forward(&presoftmax_blob, &softmax_result_blob);
+        softmax_layer.forward(&presoftmax_blob, &softmax_result_blob);
 
         // shape: (seq_len * batch) * 1
         loss_blob.set_dim(softmax_result_blob.dim0, 1);
-        loss_compute.forward(&softmax_result_blob, decoder_target, &loss_blob);
+        loss_layer.forward(&softmax_result_blob, decoder_target, &loss_blob);
 
         float total_loss = 0.0;
-        int total_count = 0;
+        int cnt = 0;
 
         loss_blob.copy_data_to_host();
-        const float *loss_values = loss_blob.host_data;
+        const float *losses = loss_blob.host_data;
         for (int i = 0; i < loss_blob.size(); ++i){
-            if (fabs(loss_values[i]) > 1e-12){
-                ++total_count;
-                total_loss += loss_values[i];
+            if (fabs(losses[i]) > 1e-12){
+                ++cnt;
+                total_loss += losses[i];
             }
         }
 
         float avg_loss = 0.0;
-        loss_factor = 0.0;
+        _loss_factor = 0.0;
 
-        if (total_count > 0){
-            avg_loss = total_loss / total_count;
-            loss_factor = 1.0 / total_count;
+        if (cnt > 0){
+            avg_loss = total_loss / cnt;
+            _loss_factor = 1.0 / cnt;
         }
-
         return avg_loss;
     }
 
     void Seq2SeqModel::backward(Blob *encoder_input, Blob *decoder_input, Blob *decoder_target){
-        loss_compute.backward(&softmax_result_blob, decoder_target, &loss_blob, loss_factor);
-        softmax.backward(&presoftmax_blob, &softmax_result_blob);
-        fc_compute.backward(&decoder_rnn_blob, &presoftmax_blob);
-        decoder_rnn_blob.set_dim(decoder_emb_blob.dim0, decoder_emb_blob.dim1, hidden_size);
+        loss_layer.backward(&softmax_result_blob, decoder_target, &loss_blob, _loss_factor);
+        softmax_layer.backward(&presoftmax_blob, &softmax_result_blob);
+        linear_layer.backward(&decoder_rnn_blob, &presoftmax_blob);
+        decoder_rnn_blob.set_dim(decoder_emb_blob.dim0, decoder_emb_blob.dim1, _hidden_size);
         // attention to this call
-        decoder_rnn.backward(&decoder_emb_blob, &encoder_rnn_blob, &decoder_rnn_blob);
+        decoder_rnn_layer.backward(&decoder_emb_blob, &encoder_rnn_blob, &decoder_rnn_blob);
         // attention to this call
-        encoder_rnn.backward(&encoder_emb_blob, &encoder_rnn_blob, NULL, NULL, NULL);
-        decoder_emb.backward(decoder_input, &decoder_emb_blob);
-        encoder_emb.backward(encoder_input, &encoder_emb_blob);
+        encoder_rnn_layer.backward(&encoder_emb_blob, &encoder_rnn_blob, NULL, NULL, NULL);
+        decoder_emb_layer.backward(decoder_input, &decoder_emb_blob);
+        encoder_emb_layer.backward(encoder_input, &encoder_emb_blob);
     }
 
     void Seq2SeqModel::optimize(Blob *encoder_input, Blob *decoder_input){
         for (size_t i = 0; i < _param_blobs.size(); ++i){
-            Optimizer.optimize(_param_blobs[i]);
+            optimizer.update(_param_blobs[i]);
         }
     }
 
@@ -158,54 +154,53 @@ namespace seq2seq{
         float decoder_rnn_sumsq = 0.0;
 
         cublasErrCheck(cublasSdot(GlobalAssets::instance()->cublasHandle(),
-                    fc_compute.get_w()->size(), fc_compute.get_w()->device_diff, 1,
-                    fc_compute.get_w()->device_diff, 1, &fc_sumsq));
+                    linear_layer.get_w()->size(), linear_layer.get_w()->device_diff, 1,
+                    linear_layer.get_w()->device_diff, 1, &fc_sumsq));
 
         cublasErrCheck(cublasSdot(GlobalAssets::instance()->cublasHandle(),
-                    encoder_rnn.weights_size() / sizeof(float), encoder_rnn.get_dw(), 1,
-                    encoder_rnn.get_dw(), 1, &encoder_rnn_sumsq));
+                    encoder_rnn_layer.weights_size() / sizeof(float), encoder_rnn_layer.get_dw(), 1,
+                    encoder_rnn_layer.get_dw(), 1, &encoder_rnn_sumsq));
 
-        std::vector<Blob *> param_blobs;
-        param_blobs.push_back(decoder_rnn.param_w());
-        param_blobs.push_back(decoder_rnn.param_u());
-        param_blobs.push_back(decoder_rnn.param_c());
-        param_blobs.push_back(decoder_rnn.param_att_w());
-        param_blobs.push_back(decoder_rnn.param_att_u());
-        param_blobs.push_back(decoder_rnn.param_att_v());
-        param_blobs.push_back(decoder_rnn.param_m_u());
-        param_blobs.push_back(decoder_rnn.param_m_v());
-        param_blobs.push_back(decoder_rnn.param_m_c());
+        std::vector<Blob *> params;
+        params.push_back(decoder_rnn_layer.param_w());
+        params.push_back(decoder_rnn_layer.param_u());
+        params.push_back(decoder_rnn_layer.param_c());
+        params.push_back(decoder_rnn_layer.param_att_w());
+        params.push_back(decoder_rnn_layer.param_att_u());
+        params.push_back(decoder_rnn_layer.param_att_v());
+        params.push_back(decoder_rnn_layer.param_m_u());
+        params.push_back(decoder_rnn_layer.param_m_v());
+        params.push_back(decoder_rnn_layer.param_m_c());
 
-        for (size_t i = 0; i < param_blobs.size(); ++i){
+        for (size_t i = 0; i < params.size(); ++i){
             float temp_sumsq = 0.0;
-            cublasErrCheck(cublasSdot(GlobalAssets::instance()->cublasHandle(),
-                        param_blobs[i]->size(),
-                        param_blobs[i]->device_diff, 1,
-                        param_blobs[i]->device_diff, 1, &temp_sumsq));
+            cublasErrCheck(cublasSdot(GlobalAssets::instance()->cublasHandle(), params[i]->size(), params[i]->device_diff, 1,
+                        params[i]->device_diff, 1, &temp_sumsq));
             decoder_rnn_sumsq += temp_sumsq;
         }
 
         float gnorm = sqrt(fc_sumsq + encoder_rnn_sumsq + decoder_rnn_sumsq);          // global_norm
 
         if (gnorm > max_gradient_norm){
-            fprintf(stderr, "global norm %.6f > thresh %.6f, clip it\n", gnorm, max_gradient_norm);
+            fprintf(stderr, "global norm %.6f > thresh %.6f\n", gnorm, max_gradient_norm);
 
             float scale_factor = max_gradient_norm / gnorm;
 
-            cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(), fc_compute.get_w()->size(), &scale_factor, fc_compute.get_w()->device_diff,1));
+            cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(),
+                linear_layer.get_w()->size(), &scale_factor, linear_layer.get_w()->device_diff,1));
 
-            cublasErrCheck(cublasSscal( GlobalAssets::instance()->cublasHandle(),
-                        encoder_rnn.weights_size() / sizeof(float),
-                        &scale_factor,
-                        encoder_rnn.get_dw(), 1));
+            cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(),
+                        encoder_rnn_layer.weights_size() / sizeof(float),
+                        &scale_factor, encoder_rnn_layer.get_dw(), 1));
 
-            for (size_t i = 0; i < param_blobs.size(); ++i){
-                cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(), param_blobs[i]->size(), &scale_factor, param_blobs[i]->device_diff,1));
+            for (size_t i = 0; i < params.size(); ++i){
+                cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(), params[i]->size(),
+                            &scale_factor, params[i]->device_diff,1));
             }
 
             // althoug not count in embedding parameters when calculating global norm
             // also needs to scale embedding grads
-            cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(), encoder_emb_blob.size(), &scale_factor, encoder_emb_blob.device_diff,1));
+            cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(), encoder_emb_blob.size(), &scale_factor, encoder_emb_blob.device_diff, 1));
             cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(), decoder_emb_blob.size(), &scale_factor, decoder_emb_blob.device_diff, 1));
         }
     }
@@ -220,51 +215,52 @@ namespace seq2seq{
         _maxout_size = hidden_size;
     }
 
-    void Seq2SeqModel::set_lr(float lr){
+    void Seq2SeqModel::set_lr_decay(float decay){
+        float lr=optimizer.get_lr()*decay;
         optimizer.set_lr(lr);
     }
 
     // load it into text format
     void Seq2SeqModel::load_model(const string &dirname){
-        encoder_emb.get_w()->loadtxt(dirname + "/encoder.emb");
-        decoder_emb.get_w()->loadtxt(dirname + "/decoder.emb");
+        encoder_emb_layer.get_w()->loadtxt(dirname + "/encoder.emb");
+        decoder_emb_layer.get_w()->loadtxt(dirname + "/decoder.emb");
 
-        encoder_rnn.get_param_blob()->loadtxt(dirname + "/encoder_rnn.weights");
+        encoder_rnn_layer.get_param()->loadtxt(dirname + "/encoder_rnn.weights");
 
-        decoder_rnn.param_w()->loadtxt(dirname + "/decoder_rnn.weights.w");
-        decoder_rnn.param_u()->loadtxt( dirname + "/decoder_rnn.weights.u");
-        decoder_rnn.param_c()->loadtxt(dirname + "/decoder_rnn.weights.c");
-        decoder_rnn.param_att_w()->loadtxt(dirname + "/decoder_rnn.weights.att_w");
-        decoder_rnn.param_att_u()->loadtxt(dirname + "/decoder_rnn.weights.att_u");
-        decoder_rnn.param_att_v()->loadtxt(dirname + "/decoder_rnn.weights.att_v");
-        decoder_rnn.param_m_u()->loadtxt(dirname + "/decoder_rnn.weights.m_u");
-        decoder_rnn.param_m_v()->loadtxt(dirname + "/decoder_rnn.weights.m_v");
-        decoder_rnn.param_m_c()->loadtxt(dirname + "/decoder_rnn.weights.m_c");
+        decoder_rnn_layer.param_w()->loadtxt(dirname + "/decoder_rnn.weights.w");
+        decoder_rnn_layer.param_u()->loadtxt( dirname + "/decoder_rnn.weights.u");
+        decoder_rnn_layer.param_c()->loadtxt(dirname + "/decoder_rnn.weights.c");
+        decoder_rnn_layer.param_att_w()->loadtxt(dirname + "/decoder_rnn.weights.att_w");
+        decoder_rnn_layer.param_att_u()->loadtxt(dirname + "/decoder_rnn.weights.att_u");
+        decoder_rnn_layer.param_att_v()->loadtxt(dirname + "/decoder_rnn.weights.att_v");
+        decoder_rnn_layer.param_m_u()->loadtxt(dirname + "/decoder_rnn.weights.m_u");
+        decoder_rnn_layer.param_m_v()->loadtxt(dirname + "/decoder_rnn.weights.m_v");
+        decoder_rnn_layer.param_m_c()->loadtxt(dirname + "/decoder_rnn.weights.m_c");
 
-        fc_compute.get_w()->loadtxt(dirname + "/fc.weights");
-        fc_compute.get_b()->loadtxt( dirname + "/fc.bias");
+        linear_layer.get_w()->loadtxt(dirname + "/fc.weights");
+        linear_layer.get_b()->loadtxt(dirname + "/fc.bias");
     }
     // save it into text format
     void Seq2SeqModel::save_model(const string &dirname){
         mkdir(dirname.c_str(), 0777);
         fprintf(stderr, "saving model to %s\n", dirname.c_str());
-        encoder_emb.get_w()->savetxt(dirname + "/encoder.emb");
-        decoder_emb.get_w()->savetxt(dirname + "/decoder.emb");
+        encoder_emb_layer.get_w()->savetxt(dirname + "/encoder.emb");
+        decoder_emb_layer.get_w()->savetxt(dirname + "/decoder.emb");
 
-        encoder_rnn.get_param_blob()->savetxt(dirname + "/encoder_rnn.weights");
-        decoder_rnn.param_w()->savetxt(dirname + "/decoder_rnn.weights.w");
-        decoder_rnn.param_u()->savetxt(dirname + "/decoder_rnn.weights.u");
-        decoder_rnn.param_c()->savetxt(dirname + "/decoder_rnn.weights.c");
+        encoder_rnn_layer.get_param()->savetxt(dirname + "/encoder_rnn.weights");
+        decoder_rnn_layer.param_w()->savetxt(dirname + "/decoder_rnn.weights.w");
+        decoder_rnn_layer.param_u()->savetxt(dirname + "/decoder_rnn.weights.u");
+        decoder_rnn_layer.param_c()->savetxt(dirname + "/decoder_rnn.weights.c");
 
-        decoder_rnn.param_att_w()->savetxt(dirname + "/decoder_rnn.weights.att_w");
-        decoder_rnn.param_att_u()->savetxt(dirname + "/decoder_rnn.weights.att_u");
-        decoder_rnn.param_att_v()->savetxt(dirname + "/decoder_rnn.weights.att_v");
+        decoder_rnn_layer.param_att_w()->savetxt(dirname + "/decoder_rnn.weights.att_w");
+        decoder_rnn_layer.param_att_u()->savetxt(dirname + "/decoder_rnn.weights.att_u");
+        decoder_rnn_layer.param_att_v()->savetxt(dirname + "/decoder_rnn.weights.att_v");
 
-        decoder_rnn.param_m_u()->savetxt(dirname + "/decoder_rnn.weights.m_u");
-        decoder_rnn.param_m_v()->savetxt(dirname + "/decoder_rnn.weights.m_v");
-        decoder_rnn.param_m_c()->savetxt(dirname + "/decoder_rnn.weights.m_c");
+        decoder_rnn_layer.param_m_u()->savetxt(dirname + "/decoder_rnn.weights.m_u");
+        decoder_rnn_layer.param_m_v()->savetxt(dirname + "/decoder_rnn.weights.m_v");
+        decoder_rnn_layer.param_m_c()->savetxt(dirname + "/decoder_rnn.weights.m_c");
 
-        fc_compute.get_w()->savetxt(dirname + "/fc.weights");
-        fc_compute.get_b()->savetxt(dirname + "/fc.bias");
+        linear_layer.get_w()->savetxt(dirname + "/fc.weights");
+        linear_layer.get_b()->savetxt(dirname + "/fc.bias");
     }
 } // namespace seq2seq

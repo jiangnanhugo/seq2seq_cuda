@@ -4,7 +4,7 @@
 #include "blob.h"
 
 namespace seq2seq{
-    class SoftmaxCompute {
+    class Softmax_layer {
         public:
             // use CUDNN_SOFTMAX_ACCURATE for inference
             // use CUDNN_SOFTMAX_LOG for training (together with other loss parts)

@@ -14,7 +14,10 @@ namespace seq2seq{
                 _optimizer_type = optimizer_type;
             }
             inline void set_lr(float lr){
-                _lr=-lr;
+                _lr=lr;
+            }
+            inline float get_lr(){
+                return _lr;
             }
             void update(Blob* param);
             void Sgd(int size, float* diff, float *data);

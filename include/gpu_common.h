@@ -24,10 +24,7 @@ namespace seq2seq {
     void focal_loss_bp(const float* input, const float* labels, float* output, int batch,int num_labels,float loss_factor,int pad_id);
 
     void TopK_ff(const float *input, float *output, sort_type type, int size,  float ratio, int pad_id);
-
-    void emb_ff(const float* w, const float* input, float* output, int seq_length, int batch_size, int emb_size);
-    void emb_bp(float* w, const float* input, const float* grad_output, int seq_length, int batch_size, int emb_size);
-
+    
     void add_at_w_and_u_terms_and_nonlinear(const float* w_terms, const float* u_terms, float* alignment_feats, int seq_len, int batch_size, int alignment_model_size);
 
     void add_at_w_and_u_terms_and_nonlinear_bp(const float* alignment_feats, const float* alignment_feats_diff, float* w_terms_diff, float* u_terms_diff, int seq_len, int batch_size, int alignment_model_size);

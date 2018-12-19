@@ -1,7 +1,7 @@
 #include "rnn.h"
 
 namespace seq2seq{
-    void RNNCompute::init(int batch_size, int hidden_size, int input_size,
+    void RNN_layer::init(int batch_size, int hidden_size, int input_size,
 		bool is_train, int num_layers, bool bidirectional, cudnnRNNMode_t mode, float dropout) {
 
 		_batch_size = batch_size;
@@ -158,7 +158,7 @@ namespace seq2seq{
 		this->initialize_params();
 	}
 
-	void RNNCompute::initialize_params() {
+	void RNN_layer::initialize_params() {
 		// use queryed matrixes and biases
 		int num_linear_layers = 0;
 		if (_mode == CUDNN_RNN_RELU || _mode == CUDNN_RNN_TANH) {
@@ -294,7 +294,7 @@ namespace seq2seq{
 	}
 
     // initial_hidden initial_cell = final_hidden final_cell = NULL
-	void RNNCompute::forward(Blob* input, Blob* output, Blob* initial_hidden, Blob* initial_cell, Blob* final_hidden, Blob* final_cell ) {
+	void RNN_layer::forward(Blob* input, Blob* output, Blob* initial_hidden, Blob* initial_cell, Blob* final_hidden, Blob* final_cell ) {
 		int seq_length = input->dim0;
 		int batch = input->dim1;
 		int input_size = input->dim2;
@@ -307,50 +307,34 @@ namespace seq2seq{
 			cudnnErrCheck(cudnnRNNForwardTraining(GlobalAssets::instance()->cudnnHandle(),
 				_rnn_desc,
 				seq_length,
-				_x_desc,
-				input->device_data,
-				_hx_desc,
-				initial_hidden == NULL ? NULL : initial_hidden->device_data,
-				_cx_desc,
-				initial_cell == NULL ? NULL : initial_cell->device_data,
-				_w_desc,
-				_w->get(),
-				_y_desc,
-				output->device_data,
-				_hy_desc,
-				final_hidden == NULL ? NULL : final_hidden->device_data,
-				_cy_desc,
-				final_cell == NULL ? NULL : final_cell->device_data,
-				_work_space->get(),
-				_work_size,
-				_reserve_space->get(),
-				_reserve_size));
+				_x_desc, input->device_data,
+				_hx_desc, initial_hidden == NULL ? NULL : initial_hidden->device_data,
+				_cx_desc, initial_cell == NULL ? NULL : initial_cell->device_data,
+				_w_desc, _w->get(),
+				_y_desc, output->device_data,
+				_hy_desc, final_hidden == NULL ? NULL : final_hidden->device_data,
+				_cy_desc, final_cell == NULL ? NULL : final_cell->device_data,
+				_work_space->get(), _work_size,
+				_reserve_space->get(), _reserve_size));
 		}else {
 			printf("cudnnRNNForwardInference\n");
 			cudnnErrCheck(cudnnRNNForwardInference(GlobalAssets::instance()->cudnnHandle(),
 				_rnn_desc,
 				seq_length,
-				_x_desc,
-				input->device_data,
-				_hx_desc,
-				initial_hidden == NULL ? NULL : initial_hidden->device_data,
-				_cx_desc,
-				initial_cell == NULL ? NULL : initial_cell->device_data,
-				_w_desc,
-				_w->get(),
-				_y_desc,
-				output->device_data,
-				_hy_desc,
-				final_hidden == NULL ? NULL : final_hidden->device_data,
-				_cy_desc,
-				final_cell == NULL ? NULL : final_cell->device_data,
+				_x_desc, input->device_data,
+				_hx_desc, initial_hidden == NULL ? NULL : initial_hidden->device_data,
+				_cx_desc, initial_cell == NULL ? NULL : initial_cell->device_data,
+				_w_desc, _w->get(),
+				_y_desc, output->device_data,
+				_hy_desc, final_hidden == NULL ? NULL : final_hidden->device_data,
+				_cy_desc, final_cell == NULL ? NULL : final_cell->device_data,
 				_work_space->get(),
 				_work_size));
 		}
 	}
 
     // initial_hidden initial_cell = final_hidden final_cell = NULL
-	void RNNCompute::backward(Blob* input, Blob* output,
+	void RNN_layer::backward(Blob* input, Blob* output,
 		Blob* initial_hidden, Blob* initial_cell, Blob* final_hidden, Blob* final_cell) {
 
 		int seq_length = input->dim0;
@@ -404,12 +388,9 @@ namespace seq2seq{
 			GlobalAssets::instance()->cudnnHandle(),
 			_rnn_desc,
 			seq_length,
-			_x_desc,
-			input->device_data,
-			_hx_desc,
-			initial_hidden == NULL ? NULL : initial_hidden->device_data,
-			_y_desc,
-			output->device_data,
+			_x_desc, input->device_data,
+			_hx_desc, initial_hidden == NULL ? NULL : initial_hidden->device_data,
+			_y_desc, output->device_data,
 			_work_space->get(),
 			_work_size,
 			_dw_desc,

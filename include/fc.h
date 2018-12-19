@@ -3,13 +3,13 @@
 #include "blob.h"
 
 namespace seq2seq{
-    class FCCompute {
+    class Linear_layer {
         public:
             void init(int input_size, int output_size);
             void forward(Blob* input, Blob* output);
             void backward(Blob* input, Blob* output);
-            Blob* get_w() { return &_w;}
-            Blob* get_b() { return &_b;}
+            Blob* get_w() {return &_w;}
+            Blob* get_b() {return &_b;}
         private:
             int _input_size, _output_size;
             Blob _w, _b, _bias_multiplier; // bias multiplier: broadcast vector to matrix.

@@ -1,7 +1,7 @@
 #ifndef SEQ2SEQ_INCLUDE_DATA_READER_H
 #define SEQ2SEQ_INCLUDE_DATA_READER_H
 
-#include "common.h"
+// #include "common.h"
 #include "init.h"
 #include <string>
 #include <map>
@@ -9,15 +9,15 @@
 
 namespace seq2seq {
     // brief: a training example
-    struct TrainPair {
-        TrainPair(): source_ids(NULL), target_ids(NULL), source_len(0), target_len(0) {}
-        TrainPair(const vector<int>& source_vec, const vector<int>& target_vec);
-        ~TrainPair() {
-            if (source_ids != NULL) {delete []source_ids;}
-            if (target_ids != NULL) {delete []target_ids;}
+    struct seq_pair {
+        seq_pair(): source_idx(NULL), target_idx(NULL), source_len(0), target_len(0) {}
+        seq_pair(const vector<int>& source_vec, const vector<int>& target_vec);
+        ~seq_pair() {
+            if (source_idx != NULL) {delete []source_idx;}
+            if (target_idx != NULL) {delete []target_idx;}
         }
 
-        int* source_ids, *target_ids;
+        int* source_idx, *target_idx;
         unsigned int source_len, target_len;
     };
 
@@ -33,9 +33,7 @@ namespace seq2seq {
             void load_vocab(const string& source_vocab, const string& target_vocab);
 
             inline int source_dict_size() {return (int)_rev_source_dict_vec.size();}
-
             inline int target_dict_size() {return (int)_rev_target_dict_vec.size();}
-
             void load_data(const string& source_file,
                     const int batch_size = 32, const unsigned int max_source_len = 50, const unsigned int max_target_len = 50);
 
@@ -59,7 +57,7 @@ namespace seq2seq {
             // _buckets is the user specified bucket list
             // _data_set size is same as _buckets, each is an array of index of training examples
             // that should stay in that bucket
-            vector<shared_ptr<TrainPair> > _all_data;
+            vector<shared_ptr<seq_pair> > _all_data;
             unsigned int _max_source_len, _max_target_len, _batch_size;
 
             shared_ptr<size_t> _data_idx; // cursor points to _example_idx, all the data index
@@ -75,9 +73,9 @@ namespace seq2seq {
             bool prefetch();
 
             void load_dict(const string& vocab_file, unordered_map<string, int>& dict, vector<string>& rev_dict);
-            void str_to_ids(const string& str, vector<int>& result, const unordered_map<string, int>& dict);
+            void str_to_idx(const string& str, vector<int>& result, const unordered_map<string, int>& dict);
 
-            unordered_map<string, int> _source_dict_map, _target_dict_map;
+            unordered_map<string, int> _source_dict, _target_dict;
 
             vector<string> _rev_source_dict_vec, _rev_target_dict_vec;
 

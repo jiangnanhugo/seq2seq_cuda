@@ -1,16 +1,15 @@
 #include "common.h"
 
-namespace seq2seq {
-	GlobalAssets g_assert;
-	std::shared_ptr<GlobalAssets> GlobalAssets::_s_singleton_global_assets;
+namespace seq2seq{
+	std::shared_ptr<GlobalAssets> GlobalAssets::g_asset;
 
 	GlobalAssets* GlobalAssets::instance() {
-		if (_s_singleton_global_assets.get() == NULL) { // first call, create the instance
-			_s_singleton_global_assets.reset(new GlobalAssets());
-			cublasErrCheck(cublasCreate(&_s_singleton_global_assets->cublasHandle()));
-			cudnnErrCheck(cudnnCreate(&_s_singleton_global_assets->cudnnHandle()));
+		if (g_asset.get() == NULL) { // first call, create the instance
+			g_asset.reset(new GlobalAssets());
+			cublasErrCheck(cublasCreate(&g_asset->cublasHandle()));
+			cudnnErrCheck(cudnnCreate(&g_asset->cudnnHandle()));
 		}
-		return _s_singleton_global_assets.get();
+		return g_asset.get();
 	}
 
 	void cpu_gemm(const CBLAS_TRANSPOSE TransA,
@@ -30,10 +29,8 @@ namespace seq2seq {
 		// Note that cublas follows fortran order.
 		int lda = (TransA == CblasNoTrans) ? K : M;
 		int ldb = (TransB == CblasNoTrans) ? N : K;
-		cublasOperation_t cuTransA =
-			(TransA == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
-		cublasOperation_t cuTransB =
-			(TransB == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
+		cublasOperation_t cuTransA = (TransA == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
+		cublasOperation_t cuTransB = (TransB == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
 
 		//    fprintf(stderr, "n=%d m=%d k=%d lda=%d ldb=%d\n", N, M, K, lda, ldb);
 		cublasErrCheck(
@@ -73,9 +70,7 @@ namespace seq2seq {
 			*buffer = 0;
 			for (int j = 0; j < col; ++j) {
 				int len = strlen(buffer);
-				snprintf(buffer + len,
-						102400 - len,
-						"%+.6f%s", data[i * col + j], j == col - 1 ? "" : ", ");
+				snprintf(buffer + len, 102400 - len, 	"%+.6f%s", data[i * col + j], j == col - 1 ? "" : ", ");
 			}
 			fprintf(stderr, "[%s]%s", buffer, i == row - 1 ? "" : "\n");
 		}
@@ -87,11 +82,7 @@ namespace seq2seq {
 			*buffer = 0;
 			for (int j = 0; j < col; ++j) {
 				int len = strlen(buffer);
-				snprintf(buffer + len,
-						102400 - len,
-						"%d%s",
-						data[i * col + j],
-						j == col - 1 ? "" : ", ");
+				snprintf(buffer + len, 102400 - len, "%d%s", data[i * col + j], j == col - 1 ? "" : ", ");
 			}
 			fprintf(stderr, "[%s]%s", buffer, i == row - 1 ? "" : "\n");
 		}
@@ -122,8 +113,7 @@ namespace seq2seq {
 
 	void split(const std::string& main_str,std::vector<std::string>& str_list,
 			const std::string& delimiter /* = space_string */) {
-		size_t pre_pos = 0;
-		size_t position = 0;
+		size_t pre_pos = 0, position = 0;
 		std::string tmp_str;
 
 		str_list.clear();

@@ -335,6 +335,12 @@ namespace seq2seq {
 			1.0f, encoder_hidden->device_data, _param_att_u.device_data, 0.0f,
 			_at_u_terms.device_data);
 
+#ifdef DEBUG_LOG
+		fprintf(stderr, "_at_u_terms\n");
+		_at_u_terms.copy_data_to_host();
+		display_matrix(_at_u_terms.host_data, _source_seq_len, _batch_size, _alignment_model_size);
+#endif
+
 		float* pre_gate_data_w = _pre_gate.device_data;
 		float* pre_gate_data_u = _pre_gate.device_data + _target_seq_len * _batch_size * 3 * _hidden_size;
 		float* pre_gate_data_c = _pre_gate.device_data + _target_seq_len * _batch_size * 6 * _hidden_size;
@@ -344,13 +350,90 @@ namespace seq2seq {
 			_target_seq_len * _batch_size, 3 * _hidden_size, _input_size,
 			1.0f, input->device_data, _param_w.device_data, 0.0f,
 			pre_gate_data_w);
+#ifdef DEBUG_LOG
+		fprintf(stderr, "pre_gate_data_w\n");
+		_pre_gate.copy_data_to_host();
+		//    display_matrix(_pre_gate.host_data, _target_seq_len, _batch_size,  3 * _hidden_size);
+		display_matrix(_pre_gate.host_data, _batch_size, 3, _hidden_size);
+#endif
 
 		// N.B. : caution to order: reset(r) update(i) new gate(h)
 		for (int t = 0; t < _target_seq_len; ++t) {
 			// compute dynamic context
-            this->step(encoder_hidden, pre_gate_data_w, pre_gate_data_u, pre_gate_data_c, t);
+			float* context_data_t = _context.device_data + t * _batch_size * 2 * _hidden_size;
+			float* h_data_tm1 = t > 0 ? _decoder_hidden.device_data + (t - 1) * _batch_size * _hidden_size : _h0.device_data;
+
+			float* h_data_t = _decoder_hidden.device_data + t * _batch_size * _hidden_size;
+			float* pre_gate_data_w_t = pre_gate_data_w + t * _batch_size * 3 * _hidden_size;
+			float* pre_gate_data_u_t = pre_gate_data_u + t * _batch_size * 3 * _hidden_size;
+			float* pre_gate_data_c_t = pre_gate_data_c + t * _batch_size * 3 * _hidden_size;
+			float* gate_data_t = _gate.device_data + t * _batch_size * 3 * _hidden_size;
+
+			this->compute_dynamic_context(encoder_hidden, h_data_tm1, t);
+
+			// compute pregate of hidden to hidden
+			gpu_gemm(CblasNoTrans,CblasNoTrans,
+				_batch_size, 3 * _hidden_size, _hidden_size,
+				1.0f, h_data_tm1, _param_u.device_data, 0.0f,
+				pre_gate_data_u_t);
+
+#ifdef DEBUG_LOG
+			fprintf(stderr, "pre_gate_data_u\n");
+			_pre_gate.copy_data_to_host();
+			display_matrix(_pre_gate.host_data + _target_seq_len * _batch_size * 3 * _hidden_size,
+				_batch_size,
+				3,
+				_hidden_size);
+#endif
+#ifdef DEBUG_LOG
+			fprintf(stderr, "pre_gate_data_all");
+			_pre_gate.copy_data_to_host();
+			display_matrix(_pre_gate.host_data,
+				3,
+				_target_seq_len,
+				3 * _batch_size * _hidden_size);
+#endif
+
+
+			// compute pregate of context to hidden
+			gpu_gemm(CblasNoTrans, CblasNoTrans,
+				_batch_size, 3 * _hidden_size, 2 * _hidden_size,
+				1.0f, context_data_t, _param_c.device_data, 0.0f,
+				pre_gate_data_c_t);
+
+#ifdef DEBUG_LOG
+			fprintf(stderr, "pre_gate_data_c\n");
+			_pre_gate.copy_data_to_host();
+			display_matrix(_pre_gate.host_data + _target_seq_len * _batch_size * 6 * _hidden_size,
+				_batch_size,
+				3,
+				_hidden_size);
+#endif
+
+			// for this time step, compute non linear and output
+			attention_decoder_ff_nonlinear(
+				h_data_tm1,
+				pre_gate_data_w_t, pre_gate_data_u_t, pre_gate_data_c_t, gate_data_t, h_data_t,
+				_batch_size, _hidden_size);
+
+#ifdef DEBUG_LOG
+			fprintf(stderr, "output\n");
+			_decoder_hidden.copy_data_to_host();
+			display_matrix(_decoder_hidden.host_data + t * _batch_size * _hidden_size,
+				_batch_size,
+				_hidden_size);
+#endif
 		}
 
+#ifdef DEBUG_LOG
+		fprintf(stderr, "final decoder hidden\n");
+		_decoder_hidden.copy_data_to_host();
+
+		display_matrix(_decoder_hidden.host_data,
+			_target_seq_len,
+			_batch_size,
+			_hidden_size);
+#endif
 
 		///////////////////////////////////////////////////////////////
 			// maxout related
@@ -373,40 +456,22 @@ namespace seq2seq {
 		maxout_ff(pre_maxout_data, output->device_data, _max_ele_idx.device_data,
 			_target_seq_len * _batch_size * _maxout_size);
 
+#ifdef DEBUG_LOG
+		fprintf(stderr, "max element idx \n");
+		_max_ele_idx.copy_data_to_host();
+		display_matrix(_max_ele_idx.host_data,
+			_target_seq_len,
+			_batch_size,
+			_maxout_size);
+
+		fprintf(stderr, "final output\n");
+		output->copy_data_to_host();
+		display_matrix(output->host_data,
+			_target_seq_len,
+			_batch_size,
+			_maxout_size);
+#endif
 	}
-
-    void AttentionDecoder::step(Blob* encoder_hidden,
-                            float* pre_gate_data_w, float* pre_gate_data_u, float* pre_gate_data_c,
-                            int t){
-        // compute dynamic context
-        float* context_data_t = _context.device_data + t * _batch_size * 2 * _hidden_size;
-        float* h_data_tm1 = t > 0 ? _decoder_hidden.device_data + (t - 1) * _batch_size * _hidden_size : _h0.device_data;
-
-        float* h_data_t = _decoder_hidden.device_data + t * _batch_size * _hidden_size;
-        float* pre_gate_data_w_t = pre_gate_data_w + t * _batch_size * 3 * _hidden_size;
-        float* pre_gate_data_u_t = pre_gate_data_u + t * _batch_size * 3 * _hidden_size;
-        float* pre_gate_data_c_t = pre_gate_data_c + t * _batch_size * 3 * _hidden_size;
-        float* gate_data_t = _gate.device_data + t * _batch_size * 3 * _hidden_size;
-
-        this->compute_dynamic_context(encoder_hidden, h_data_tm1, t);
-
-        // compute pregate of hidden to hidden
-        gpu_gemm(CblasNoTrans,CblasNoTrans,
-            _batch_size, 3 * _hidden_size, _hidden_size,
-            1.0f, h_data_tm1, _param_u.device_data, 0.0f,
-            pre_gate_data_u_t);
-
-        // compute pregate of context to hidden
-        gpu_gemm(CblasNoTrans, CblasNoTrans,
-            _batch_size, 3 * _hidden_size, 2 * _hidden_size,
-            1.0f, context_data_t, _param_c.device_data, 0.0f,
-            pre_gate_data_c_t);
-
-        // for this time step, compute non linear and output
-        attention_decoder_ff_nonlinear(h_data_tm1,
-            pre_gate_data_w_t, pre_gate_data_u_t, pre_gate_data_c_t, gate_data_t, h_data_t,
-            _batch_size, _hidden_size);
-    }
 
 	void AttentionDecoder::set_all_diff_to_zero(Blob* input, Blob* encoder_hidden) {
 		// memset diff to zero

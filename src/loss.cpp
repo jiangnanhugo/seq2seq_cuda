@@ -1,7 +1,7 @@
 #include"loss.h"
 
 namespace seq2seq{
-    void LossCompute::forward(Blob* input, Blob* labels, Blob* output) {
+    void Loss_layer::forward(Blob* input, Blob* labels, Blob* output) {
 		int batch = input->dim0;
 		int num_labels = input->dim1;
         if(_error_type==LOSS_TYPE::CROSS_ENTROPY){
@@ -14,7 +14,7 @@ namespace seq2seq{
 	}
 
 	// output is the loss values, dont need for now
-	void LossCompute::backward(Blob* input, Blob* labels, Blob* output, float loss_factor) {
+	void Loss_layer::backward(Blob* input, Blob* labels, Blob* output, float loss_factor) {
 		int batch = input->dim0;
 		int num_labels = input->dim1;
         if(_error_type==LOSS_TYPE::CROSS_ENTROPY){

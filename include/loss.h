@@ -11,7 +11,7 @@ namespace seq2seq{
     // if that target is a pad symbol
     // i.e.: only implements "negative" in negative log loss
     enum LOSS_TYPE{CROSS_ENTROPY, FOCAL_LOSS};
-    class LossCompute {
+    class Loss_layer {
         public:
             LOSS_TYPE _error_type;
             inline void init(int pad_id = 0, LOSS_TYPE type=CROSS_ENTROPY) {

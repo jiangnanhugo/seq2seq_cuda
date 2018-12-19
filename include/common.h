@@ -41,10 +41,7 @@ void operator=(TypeName) = delete;
     do { \
         cudnnStatus_t status = condition; \
         if (status != CUDNN_STATUS_SUCCESS) { \
-            fprintf(stderr, "cuDNN Error: %s %s %d\n", \
-                    cudnnGetErrorString(status), \
-                    __FILE__, \
-                    __LINE__); \
+            fprintf(stderr, "cuDNN Error: %s %s %d\n", cudnnGetErrorString(status), __FILE__, __LINE__); \
             exit(-1); \
         } \
     } while (0)
@@ -64,13 +61,11 @@ namespace seq2seq {
             cublasHandle_t _cublasHandle;
             cudnnHandle_t _cudnnHandle;
         private:
-            static std::shared_ptr<GlobalAssets> _s_singleton_global_assets;
+            static std::shared_ptr<GlobalAssets> g_asset;
 
         private:
             DISALLOW_COPY_AND_ASSIGN(GlobalAssets)
     };
-    extern GlobalAssets g_assert;
-
 
     void cpu_gemm(const CBLAS_TRANSPOSE TransA,
             const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,

@@ -32,8 +32,6 @@ namespace seq2seq {
 #define EMB_BATCH_BLOCKS_X     4
 #define EMB_BATCH_BLOCKS_Y     128
 
-
-
     __global__
     void cross_entropy_loss_ff_kernel(const float* input, const float* labels, float* output,
             int batch, int num_labels, int pad_id) {
@@ -130,63 +128,19 @@ namespace seq2seq {
     void cross_entropy_loss_bp(const float* input,const float* labels, float* output,
                                int batch,int num_labels, float loss_factor,int pad_id) {
         cross_entropy_loss_bp_kernel<<<GET_BLOCKS(batch * num_labels), CUDA_NUM_THREADS>>>(
-                input, labels,output,
-                batch,num_labels,loss_factor,pad_id);
+                input, labels, output, batch, num_labels, loss_factor, pad_id);
     }
 
     void focal_loss_bp(const float* input,const float* labels, float* output,
                                int batch,int num_labels, float loss_factor,int pad_id) {
         focal_loss_bp_kernel<<<GET_BLOCKS(batch * num_labels), CUDA_NUM_THREADS>>>(
-                input, labels,output,
-                batch,num_labels,loss_factor,pad_id);
+                input, labels,output, batch, num_labels, loss_factor, pad_id);
     }
 
-    // begin emb layer
-
-    __global__
-    void emb_bp_kernel(float* w, const float* input, const float* grad_output, int seq_length, int batch_size, int emb_size) {
-        int total = seq_length * batch_size * emb_size;
-        CUDA_KERNEL_LOOP(i, total) {
-            int row = i / emb_size;
-            int column = i % emb_size;
-
-            float* emb_t = w + static_cast<unsigned int>(input[row]) * emb_size;
-            atomicAdd(emb_t + column, grad_output[i]);
-        }
-    }
-
-    void emb_bp(float* w, const float* input, const float* grad_output, int seq_length, int batch_size, int emb_size) {
-        int total = seq_length * batch_size * emb_size;
-        emb_bp_kernel<<<GET_BLOCKS(total), CUDA_NUM_THREADS>>>(w, input, grad_output, seq_length, batch_size, emb_size);
-    }
-
-    __global__
-    void emb_ff_kernel(const float* w, const float* input, float* output, int batch_size, int seq_length, int emb_size){
-        int total = seq_length * batch_size * emb_size;
-        CUDA_KERNEL_LOOP(i, total) {
-            int row = i / emb_size;
-            int column = i % emb_size;
-
-            const float* emb_t = w + static_cast<unsigned int>(input[row]) * emb_size;
-            output[i] = emb_t[column];
-        }
-    }
-
-    void emb_ff(const float* w, const float* input, float* output, int batch_size, int seq_length, int emb_size){
-        int total = seq_length * batch_size * emb_size;
-        const dim3 blockSize(CUDA_NUM_THREADS, 1, 1);
-        const dim3 gridSize(GET_BLOCKS(total), 1, 1);
-        emb_ff_kernel<<< gridSize, blockSize >>> (w, input, output, batch_size, seq_length, emb_size);
-    }
-    // end emb layer
 
     __global__ void add_at_w_and_u_terms_and_nonlinear_kernel(
-            const float* w_terms,
-            const float* u_terms,
-            float* alignment_feats,
-            int seq_len,
-            int batch_size,
-            int alignment_model_size) {
+            const float* w_terms, const float* u_terms, float* alignment_feats,
+            int seq_len, int batch_size, int alignment_model_size) {
 
         CUDA_KERNEL_LOOP(i, seq_len * batch_size * alignment_model_size) {
             unsigned int col_id = i % (batch_size * alignment_model_size);
@@ -195,19 +149,11 @@ namespace seq2seq {
     }
 
     void add_at_w_and_u_terms_and_nonlinear(
-            const float* w_terms,
-            const float* u_terms,
-            float* alignment_feats,
-            int seq_len,
-            int batch_size,
-            int alignment_model_size) {
+            const float* w_terms, const float* u_terms, float* alignment_feats,
+            int seq_len, int batch_size, int alignment_model_size) {
         add_at_w_and_u_terms_and_nonlinear_kernel<<<GET_BLOCKS(seq_len * batch_size * alignment_model_size), CUDA_NUM_THREADS>>>(
-                w_terms,
-                u_terms,
-                alignment_feats,
-                seq_len,
-                batch_size,
-                alignment_model_size);
+                w_terms, u_terms, alignment_feats,
+                seq_len, batch_size, alignment_model_size);
     }
 
     __global__ void add_at_w_and_u_terms_and_nonlinear_bp_kernel(
@@ -247,28 +193,20 @@ namespace seq2seq {
     __global__ void compute_context_kernel(
             const float* attention_weights,
             const float* encoder_hidden,
-            float* context,
-            int seq_len,
-            int batch_size,
-            int hidden_size) {
+            float* context, int seq_len, int batch_size, int hidden_size) {
 
         CUDA_KERNEL_LOOP(i, batch_size * 2 * hidden_size) {
             int batch_id = i / (2 * hidden_size);
             context[i] = 0.0;
             for (int k = 0; k < seq_len; ++k) {
-                context[i] += encoder_hidden[k * batch_size * 2 * hidden_size + i] \
-                              * attention_weights[k * batch_size + batch_id];
+                context[i] += encoder_hidden[k * batch_size * 2 * hidden_size + i] * attention_weights[k * batch_size + batch_id];
             }
         }
     }
 
     void compute_context(
-            const float* attention_weights,
-            const float* encoder_hidden,
-            float* context,
-            int seq_len,
-            int batch_size,
-            int hidden_size) {
+            const float* attention_weights, const float* encoder_hidden,
+            float* context, int seq_len, int batch_size, int hidden_size) {
 
         compute_context_kernel<<<GET_BLOCKS(batch_size * 2 * hidden_size), CUDA_NUM_THREADS>>>(
                 attention_weights,

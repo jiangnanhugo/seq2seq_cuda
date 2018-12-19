@@ -4,7 +4,7 @@
 #include "blob.h"
 
 namespace seq2seq{
-    class RNNCompute {
+    class RNN_layer {
         public:
             void init(int batch_size, int hidden_size, int input_size,
                     bool is_training = true, int num_layers = 1, bool bidirectional = false,
@@ -74,7 +74,6 @@ namespace seq2seq{
             Blob _param_blob;
 
             vector<vector<Blob> > _matrix_blobs, _bias_blobs;
-
     };
 }
 #endif

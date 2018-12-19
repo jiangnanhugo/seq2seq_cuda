@@ -19,7 +19,7 @@ namespace seq2seq {
         void set_dim(int d0, int d1){ dim0=d0; dim1=d1; dim2=1;}
         void set_dim(int d0, int d1, int d2){dim0=d0; dim1=d1; dim2=d2;}
 
-        void malloc_data();
+        void malloced();
         void copy_data_to_device();
         void copy_data_to_host();
         void copy_diff_to_device();
@@ -49,7 +49,7 @@ namespace seq2seq {
             void* get() {return _data;}
         private:
             void* _data;
-            DISALLOW_COPY_AND_ASSIGN(GpuMemPtr);
+            DISALLOW_COPY_AND_ASSIGN(GpuMemPtr)
     };
 
 }

@@ -1,8 +1,8 @@
 #include "blob.h"
 
 namespace seq2seq{
-    void Blob::malloc_data() {
-        int shape=size();
+    void Blob::malloced() {
+        int shape = size();
         host_data = (float*)malloc(shape * sizeof(float));
         assert(host_data != NULL);
         cudaErrCheck(cudaMalloc((void**)&device_data, shape * sizeof(float)));
@@ -88,5 +88,5 @@ namespace seq2seq{
         fprintf(stderr, "%s in shape (%d %d %d)\n", info.c_str(), dim0, dim1, dim2);
         display_matrix(this->host_diff, dim0, dim1, dim2);
     }
-
-}
+    // end Blob
+} // end seq2seq

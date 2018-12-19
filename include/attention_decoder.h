@@ -7,10 +7,8 @@ namespace seq2seq {
     class AttentionDecoder {
         public:
             void init(int batch_size, int hidden_size,  int input_size,
-                    int alignment_model_size = -1,
-                    int maxout_size = -1,
-                    int max_source_seq_len = 128,
-                    int max_target_seq_len = 128);
+                    int alignment_model_size = -1, int maxout_size = -1,
+                    int max_source_seq_len = 128, int max_target_seq_len = 128);
 
             /*
              * @brief forward pass of attention decoder (assuming a bi-directional encoder)
@@ -22,6 +20,7 @@ namespace seq2seq {
             void forward(Blob* input, Blob* encoder_hidden, Blob* output);
 
             void backward(Blob* input, Blob* encoder_hidden, Blob* output);
+            void step(Blob* encoder_hidden, float* data_w, float* data_u, float* data_c, int t);
 
             Blob* param_w() { return &_param_w;}
             Blob* param_u() { return &_param_u;}
@@ -38,18 +37,14 @@ namespace seq2seq {
             void display_all_params();
             void display_all_params_diff();
         private:
-            int _batch_size;
-            int _hidden_size;
-            int _input_size;
+            int _batch_size, _hidden_size, _input_size;
             int _alignment_model_size;
             int _maxout_size;
 
             // will be used for preparing buffers
-            int _max_source_seq_len;
-            int _max_target_seq_len;
+            int _max_source_seq_len, _max_target_seq_len;
 
-            int _source_seq_len;
-            int _target_seq_len;
+            int _source_seq_len, _target_seq_len;
         private:
             Blob _h0;
 
@@ -82,22 +77,15 @@ namespace seq2seq {
 
         private:
             // softmax enabled by cudnn
-            cudnnTensorDescriptor_t _softmax_input_desc;
-            cudnnTensorDescriptor_t _softmax_output_desc;
+            cudnnTensorDescriptor_t _softmax_input_desc, _softmax_output_desc;
             cudnnSoftmaxAlgorithm_t _softmax_alg;
         private:
 
             void set_all_diff_to_zero(Blob* input, Blob* encoder_hidden);
 
-            void compute_dynamic_context(const Blob* encoder_hidden,
-                    const float* h_tm1_data,
-                    const int t);
+            void compute_dynamic_context(const Blob* encoder_hidden, const float* h_tm1_data, const int t);
 
-            void bp_dynamic_context(
-                    Blob* encoder_hidden,
-                    const float* h_data_tm1,
-                    float* h_diff_tm1,
-                    const int t);
+            void bp_dynamic_context(Blob* encoder_hidden, const float* h_data_tm1, float* h_diff_tm1, const int t);
             void compute_h0_ff(Blob* encoder_hidden);
             void compute_h0_bp(Blob* encoder_hidden);
     };

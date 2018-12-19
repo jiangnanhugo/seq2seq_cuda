@@ -4,7 +4,7 @@
 #include "gpu_common.h"
 
 namespace seq2seq{
-    class EmbCompute {
+    class Emb_layer {
         public:
             void init(int voc_size, int emb_size);
             void forward(Blob* input, Blob* output);
@@ -15,5 +15,8 @@ namespace seq2seq{
             int _voc_size, _emb_size;
             Blob _w;
     };
+
+    void emb_ff(const float* w, const float* input, float* output, int seq_length, int batch_size, int emb_size);
+    void emb_bp(float* w, const float* input, const float* grad_output, int seq_length, int batch_size, int emb_size);
 }
 #endif
