@@ -2,7 +2,7 @@
 #include <sys/stat.h>
 
 namespace seq2seq{
-    void Seq2SeqModel::init(int encoder_seq_len, int decoder_seq_len, string loss_type, string optimizer_type, float lr){
+    void Seq2SeqModel::init_train(int encoder_seq_len, int decoder_seq_len, string loss_type, string optimizer_type, float lr){
         // init layers
         encoder_emb_layer.init(_source_voc_size, _emb_size);
         decoder_emb_layer.init(_target_voc_size, _emb_size);
@@ -72,25 +72,64 @@ namespace seq2seq{
         _param_blobs.push_back(encoder_emb_layer.get_w());
     }
 
-    float Seq2SeqModel::forward(Blob *encoder_input, Blob *decoder_input, Blob *decoder_target){
+    void Seq2SeqModel::init_inference(int encoder_seq_len){
+        // init layers
+        encoder_emb_layer.init(_source_voc_size, _emb_size);
+        decoder_emb_layer.init(_target_voc_size, _emb_size);
+        encoder_rnn_layer.init(_batch_size, _hidden_size, _emb_size, true, 1, true, CUDNN_GRU, 0.0);
+        decoder_rnn_layer.init(_batch_size, _hidden_size, _emb_size, _alignment_size, _maxout_size, encoder_seq_len, 1);
+        linear_layer.init(_maxout_size, _target_voc_size);
+        softmax_layer.init(CUDNN_SOFTMAX_LOG);
+
+        // init intermedia blobs
+        encoder_emb_blob.set_dim(encoder_seq_len, _batch_size, _emb_size);
+        encoder_emb_blob.malloced();
+
+        decoder_emb_blob.set_dim(1, _batch_size, _emb_size);
+        decoder_emb_blob.malloced();
+
+        encoder_rnn_blob.set_dim(encoder_seq_len, _batch_size, 2 * _hidden_size);
+        encoder_rnn_blob.malloced();
+
+        encoder_rnn_final_hidden.set_dim(_batch_size, 2 * _hidden_size);
+        encoder_rnn_final_hidden.malloced();
+
+        decoder_rnn_blob.set_dim(1, _batch_size, _hidden_size);
+        decoder_rnn_blob.malloced();
+
+        presoftmax_blob.set_dim(_batch_size, _target_voc_size);
+        presoftmax_blob.malloced();
+
+        softmax_result_blob.set_dim(_batch_size, _target_voc_size);
+        softmax_result_blob.malloced();
+
+        // loss_blob.set_dim(_batch_size, 1);
+        // loss_blob.malloced();
+    }
+
+    void Seq2SeqModel::encode(Blob* encoder_input){
         // seq_len * batch * emb_size
         encoder_emb_blob.set_dim(encoder_input->dim0, encoder_input->dim1, _emb_size);
         encoder_emb_layer.forward(encoder_input, &encoder_emb_blob);
-
-        // seq_len * batch * emb_size
-        decoder_emb_blob.set_dim(decoder_input->dim0, decoder_input->dim1, _emb_size);
-        decoder_emb_layer.forward(decoder_input, &decoder_emb_blob);
 
         // seq_len * batch *  2 * hidden_size
         encoder_rnn_blob.set_dim(encoder_emb_blob.dim0, encoder_emb_blob.dim1, 2 * _hidden_size);
 
         // batch * 2 * hidden_size
-        encoder_rnn_final_hidden.set_dim(encoder_emb_blob.dim1, 2 * _hidden_size,1);
-        encoder_rnn_layer.forward(&encoder_emb_blob, &encoder_rnn_blob, NULL,NULL, NULL);
+        encoder_rnn_final_hidden.set_dim(encoder_emb_blob.dim1, 2 * _hidden_size, 1);
+        encoder_rnn_layer.forward(&encoder_emb_blob, &encoder_rnn_blob, NULL, NULL, NULL);
+    }
+
+    float Seq2SeqModel::forward(Blob *encoder_input, Blob *decoder_input, Blob *decoder_target){
+        this->encode(encoder_input);
+
+        // seq_len * batch * emb_size
+        decoder_emb_blob.set_dim(decoder_input->dim0, decoder_input->dim1, _emb_size);
+        decoder_emb_layer.forward(decoder_input, &decoder_emb_blob);
 
         // seq_len * batch * hidden_size
         decoder_rnn_blob.set_dim(decoder_emb_blob.dim0, decoder_emb_blob.dim1, _hidden_size);
-        decoder_rnn_layer.forward(&decoder_emb_blob, &encoder_rnn_blob, &decoder_rnn_blob);
+        decoder_rnn_layer.recurrent(&decoder_emb_blob, &encoder_rnn_blob, &decoder_rnn_blob);
 
         // before fc, reshpae the input to (seq_len * batch) * hidden_size
         decoder_rnn_blob.set_dim(decoder_rnn_blob.dim0 * decoder_rnn_blob.dim1, decoder_rnn_blob.dim2, 1);
@@ -127,6 +166,36 @@ namespace seq2seq{
             _loss_factor = 1.0 / cnt;
         }
         return avg_loss;
+    }
+
+    void Seq2SeqModel::step(Blob* decoder_input, int beam_size, int timestep){
+        // seq_len * batch * emb_size
+        decoder_emb_blob.set_dim(decoder_input->dim0, decoder_input->dim1, _emb_size);
+        decoder_emb_layer.forward(decoder_input, &decoder_emb_blob);
+
+        // seq_len(=1) * batch * hidden_size
+        decoder_rnn_blob.set_dim(1, decoder_emb_blob.dim1, _hidden_size);
+        decoder_rnn_layer.step(&decoder_emb_blob, &encoder_rnn_blob, &decoder_rnn_blob, timestep);
+        Blob* pre_maxout = decoder_rnn_layer.get_pre_maxout();
+        decoder_rnn_layer.maxout(&decoder_emb_blob, &pre_maxout, &decoder_rnn_blob);
+
+        // before fc, reshpae the input to [seq_len(=1) * batch, hidden_size]
+        decoder_rnn_blob.set_dim(decoder_rnn_blob.dim0 * decoder_rnn_blob.dim1, decoder_rnn_blob.dim2, 1);
+
+        // result shape: [seq_len(=1) * batch, target_voc_size]
+        presoftmax_blob.set_dim(decoder_rnn_blob.dim0, _target_voc_size);
+        linear_layer.forward(&decoder_rnn_blob, &presoftmax_blob);
+
+        // shape: (seq_len * batch) * target_voc_size
+        softmax_result_blob.set_dim(presoftmax_blob.dim0, presoftmax_blob.dim1);
+        softmax_layer.forward(&presoftmax_blob, &softmax_result_blob);
+
+        softmax_result_blob.copy_data_to_host();
+        float* probs = softmax_result_blob.host_data;
+        int len =  _batch_size * _target_voc_size;
+        decoder_input.copy_data_to_host();
+        argsort(probs, decoder_input.host_data, _batch_size * _target_voc_size);
+        decoder_input.copy_data_to_device();
     }
 
     void Seq2SeqModel::backward(Blob *encoder_input, Blob *decoder_input, Blob *decoder_target){

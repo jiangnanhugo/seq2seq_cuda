@@ -30,10 +30,4 @@ namespace seq2seq{
                     _output_desc, output->device_diff,
                     cudnn::dataType<float>::zero, _input_desc, input->device_diff));
     }
-
-    void TopKCompute::forward(Blob *input, Blob *output, sort_type type, int ratio){
-        int batch = input->dim0;
-        int num_labels = input->dim1;
-        TopK_ff(input->device_data, output->device_data, type, batch * num_labels, ratio, _pad_id);
-    }
 }

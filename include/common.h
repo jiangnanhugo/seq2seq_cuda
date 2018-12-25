@@ -85,6 +85,9 @@ namespace seq2seq {
     void xavier_fill(float* data, int count, int in, int out);
     void constant_fill(float* data, int count, float val);
 
+    void insert_sort(float *arr, int *idx, int n, int beam_size);
+    void argsort(float * data, int* indices, int len, int beam_size);
+
     template <typename Dtype>
         void display_matrix(const Dtype* data, int row, int col, int dim2 = -1);
 

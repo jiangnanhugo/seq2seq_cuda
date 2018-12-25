@@ -15,14 +15,5 @@ namespace seq2seq{
             cudnnTensorDescriptor_t _input_desc, _output_desc;
             cudnnSoftmaxAlgorithm_t _alg;
     };
-
-    class TopKCompute{
-        public:
-            inline void init(int pad_id=0){ _pad_id=pad_id;}
-            void forward(Blob *input, Blob* output, sort_type type, int ratio);
-
-        private:
-            int _pad_id;
-    };
 }
 #endif

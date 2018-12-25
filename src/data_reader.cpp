@@ -174,6 +174,60 @@ namespace seq2seq {
         return true;
     }
 
+    // encoder_input : encoder_size * batch,
+    // decoder_input, decoder_target : decoder_size * batch
+    bool DataReader::get_batch(Blob* encoder_input, Blob* decoder_input){
+        cerr << "cursor:" << _prefetch_cursor << " example_size: " << _prefetched_examples.size() << endl;
+
+        size_t batch_end = _prefetch_cursor + _batch_size;
+        int source_length = _all_data[_prefetched_examples[batch_end - 1]]->source_len;
+
+        int target_length = -1;
+        for(unsigned int k = 0 ; k < _batch_size; k++){
+            int length = this -> _all_data[_prefetch_cursor + k]->target_len + 1;
+            target_length = (length > target_length ? length : target_length);
+        }
+
+        float* en_input = encoder_input->host_data;
+        float* de_input = decoder_input->host_data;
+
+        memset(en_input, static_cast<float>(PAD_ID), source_length * _batch_size * sizeof(float));
+        memset(de_input, static_cast<float>(PAD_ID), _batch_size * sizeof(float));
+
+        for (unsigned int i = 0; i < _batch_size; ++i) {
+            int sent_idx = _prefetched_examples[_prefetch_cursor + i];
+            const seq_pair* pair_t = _all_data[sent_idx].get();
+
+            // reverse encoder input
+            int k = (source_length - pair_t->source_len) * _batch_size;
+            for (int j = pair_t->source_len - 1; j >= 0; --j) {
+                en_input[k] = static_cast<float>(pair_t->source_idx[j]);
+                k += _batch_size;
+            }
+
+            // insert GO_ID into decoder begining
+            k = i;
+            de_input[k] = static_cast<float>(GO_ID);
+        }
+
+        encoder_input->set_dim(source_length, _batch_size);
+        decoder_input->set_dim(target_length, _batch_size);
+
+        fprintf(stderr, "source length: %d, target_length:%d\n", source_length, target_length);
+
+        encoder_input->copy_data_to_device();
+        decoder_input->copy_data_to_device();
+
+        _prefetch_cursor += _batch_size;
+        if (_prefetch_cursor >= _prefetched_examples.size()) {
+            prefetch();
+        }
+        if(_cursor >= _all_data.size()){
+            return false;
+        }
+        return true;
+    }
+
     void DataReader::display_all_data() {
         for (const auto& item : _all_data) {
             fprintf(stderr, "source: ");

@@ -17,10 +17,12 @@ namespace seq2seq {
              * @param [in] encoder_hidden given x in shape: seq_length * batch * input_size
              * @param [out] output generate y in shape: seq_length * batch * hidden_size
              */
-            void forward(Blob* input, Blob* encoder_hidden, Blob* output);
+            void recurrent(Blob* input, Blob* encoder_hidden, Blob* output);
 
             void backward(Blob* input, Blob* encoder_hidden, Blob* output);
             void step(Blob* encoder_hidden, float* data_w, float* data_u, float* data_c, int t);
+            void maxout(Blob* _pre_maxout, Blob* input, Blob* output);
+            void compute_h0(Blob* encoder_hidden, int target_seq_len);
 
             Blob* param_w() { return &_param_w;}
             Blob* param_u() { return &_param_u;}
@@ -33,6 +35,7 @@ namespace seq2seq {
             Blob* param_m_u() {return &_param_m_u;};
             Blob* param_m_v() {return &_param_m_v;};
             Blob* param_m_c() {return &_param_m_c;};
+            Blob* get_pre_maxout(){return &_pre_maxout;}
 
             void display_all_params();
             void display_all_params_diff();
@@ -63,9 +66,8 @@ namespace seq2seq {
             Blob _pre_gate;   // terms before nonlinear
             Blob _gate;       // after nonlinear
 
-            Blob _decoder_hidden;
-            Blob _pre_maxout;
-            Blob _max_ele_idx;
+            Blob _decoder_hidden, _pre_maxout, _max_ele_idx;
+            float *_pre_gate_data_w, *_pre_gate_data_u, *_pre_gate_data_c;
 
             // alignment model related
             Blob _context;           // c_i

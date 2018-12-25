@@ -1,3 +1,4 @@
+#include <numeric>
 #include "common.h"
 
 namespace seq2seq{
@@ -11,6 +12,25 @@ namespace seq2seq{
 		}
 		return g_asset.get();
 	}
+
+    void insert_sort(float *arr, float *idx, int n, int beam_size) {
+        for (int i = 1; i < n; i++) {
+            int key = arr[i];
+            int j = i - 1;
+            while (j >= 0 && arr[j] > key) {
+                arr[j + 1] = arr[j];
+                if( j+1 < beam_size){idx[j + 1] = idx[j];}
+                j = j - 1;
+        }
+        arr[j + 1] = key;
+        if( j+1 < beam_size){idx[j + 1] = i;}
+        }
+    }
+
+    void argsort(float* data, float* indices, int len, int beam_size){
+    	std::iota(indices, indices + beam_size, 0);
+        insert_sort(data, indices, len, beam_size);
+    }
 
 	void cpu_gemm(const CBLAS_TRANSPOSE TransA,
 			const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,

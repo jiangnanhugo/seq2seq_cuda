@@ -49,6 +49,7 @@ namespace seq2seq {
              * @param [out] decoder_target in shape seq_length * batch, W X Y Z EOS
              */
             bool get_batch(Blob* encoder_input,  Blob* decoder_input, Blob* decoder_target);
+            bool get_batch(Blob* encoder_input, Blob* decoder_output);
             void shulffle_and_bucket();
             void display_all_data();
 

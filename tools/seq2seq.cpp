@@ -10,6 +10,7 @@ DEFINE_double(lr, 0.5, "learning rate");
 DEFINE_double(lr_decay, 0.999, "lr decay");
 DEFINE_int32(max_epoch, 50, "max epoch to train");
 DEFINE_int32(batch_size, 32, "Mini-batch size");
+DEFINE_int32(beam_size, 10, "beam search size");
 DEFINE_int32(emb_size, 512, "Embedding size");
 DEFINE_int32(hidden_size, 1024, "Hidden size");
 DEFINE_bool(is_train, true, "train or inference");
@@ -30,7 +31,7 @@ namespace seq2seq{
         DataReader reader;
         reader.load_vocab(FLAGS_train_data_dir + "/source.vocab", FLAGS_train_data_dir + "/target.vocab");
 
-        cerr<< "source dict size: "<<reader.source_dict_size()<< ", target dict size: "<<reader.target_dict_size()<<endl;
+        cerr<< "source dict size: " << reader.source_dict_size() << ", target dict size: " << reader.target_dict_size() << endl;
 
         int max_encoder_len = FLAGS_max_source_len;
         // target will addes eos and go_id
@@ -42,7 +43,7 @@ namespace seq2seq{
         Seq2SeqModel model;
         model.set_param(reader.source_dict_size(), reader.target_dict_size(), FLAGS_batch_size, FLAGS_emb_size, FLAGS_hidden_size);
 
-        model.init(max_encoder_len, max_decoder_len, FLAGS_loss_type, FLAGS_opt_type, FLAGS_lr);
+        model.init_train(max_encoder_len, max_decoder_len, FLAGS_loss_type, FLAGS_opt_type, FLAGS_lr);
         fprintf(stderr, "init ended\n");
 
         if (FLAGS_load_model_dir.size() > 0){
@@ -63,10 +64,10 @@ namespace seq2seq{
         //start training
         fprintf(stderr, "start training....\n");
         for (int epoch = 0; epoch < FLAGS_max_epoch; ++epoch){
-            int iter=0;
+            int iter = 0;
             float sum_loss = 0.0;
-            bool ret=false;
-            while((ret=reader.get_batch(&encoder_input, &decoder_input, &decoder_target))!=false){
+            bool ret = false;
+            while((ret = reader.get_batch(&encoder_input, &decoder_input, &decoder_target))!=false){
                 iter++;
                 sum_loss += model.forward(&encoder_input, &decoder_input, &decoder_target);
                 model.backward(&encoder_input, &decoder_input, &decoder_target);
@@ -74,9 +75,8 @@ namespace seq2seq{
                 model.optimize(&encoder_input, &decoder_input);
             }
             // print loss over epoch
-            float loss=sum_loss / iter;
-            fprintf(stdout, "epoch=%d, iter=%d, lr=%6f, loss=%6f, ppl=%6f\n",
-                        epoch + 1, iter, model.optimizer._lr, loss , exp(loss));
+            float loss = sum_loss / iter;
+            fprintf(stdout, "epoch=%d, iter=%d, lr=%6f, loss=%6f, ppl=%6f\n", epoch + 1, iter, model.optimizer._lr, loss , exp(loss));
             model.set_lr_decay(FLAGS_lr_decay);
             reader.shulffle_and_bucket();                                       // reload dataset
             model.save_model(FLAGS_save_model_dir + "/epoch_" + to_string(epoch + 1)); // save current model.
@@ -87,65 +87,50 @@ namespace seq2seq{
     void run_inference(){
         //===========prepare data============
         DataReader reader;
-        string source_vocab = FLAGS_train_data_dir + "/source.vocab";
-        string target_vocab = FLAGS_train_data_dir + "/target.vocab";
-        int batch_size=1;
-        reader.load_vocab(source_vocab,target_vocab);
+        reader.load_vocab(FLAGS_train_data_dir + "/source.vocab", FLAGS_train_data_dir + "/target.vocab");
 
         int max_encoder_len = FLAGS_max_source_len;
         // target will addes eos and go_id
         int max_decoder_len = FLAGS_max_target_len + 2;
+        int batch_size = 1;
+        int beam_size = FLAGS_beam_size;
 
-        fprintf(stderr, "source dict size : %d, target dict size: %d\n",
-                reader.source_dict_size(), reader.target_dict_size());
-        reader.load_data(FLAGS_train_data_dir + "/test.txt",
-                batch_size, FLAGS_max_source_len, FLAGS_max_target_len);
+        fprintf(stderr, "source dict size : %d, target dict size: %d\n", reader.source_dict_size(), reader.target_dict_size());
+        reader.load_data(FLAGS_train_data_dir + "/test.txt", batch_size, FLAGS_max_source_len, FLAGS_max_target_len);
 
         //================initialize model================
         Seq2SeqModel model;
 
         model.set_param(reader.source_dict_size(), reader.target_dict_size(), batch_size, FLAGS_emb_size, FLAGS_hidden_size);
-        model.init(max_encoder_len, max_decoder_len, "cross_entropy", FLAGS_opt_type, 0.0);
+        model.init_inference(max_encoder_len, max_decoder_len);
         fprintf(stderr, "init ended\n");
 
         if (FLAGS_load_model_dir.size() > 0){
             model.load_model(FLAGS_load_model_dir);
         }
 
-        Blob encoder_input, decoder_input, decoder_target;
+        Blob encoder_input, decoder_input;
 
         encoder_input.set_dim(max_encoder_len, batch_size);
-        decoder_input.set_dim(max_decoder_len, batch_size);
-        decoder_target.set_dim(max_decoder_len, batch_size);
+        decoder_input.set_dim(1, batch_size);
 
         encoder_input.malloced();
         decoder_input.malloced();
-        decoder_target.malloced();
 
         vector<float> losses;
         //====================start optimization===========
         int checkpoint = 0;
         float checkpoint_avg_loss = 0.0;
 
-        bool ret=false;
-        int iter=0;
-        while((ret=reader.get_batch(&encoder_input, &decoder_input, &decoder_target))!=false){
+        bool ret = false;
+        int iter = 0;
+        while((ret = reader.get_batch(&encoder_input, &decoder_input)) != false){
             fprintf(stderr, "calc loss....\n");
-            float iter_loss = model.forward(&encoder_input, &decoder_input, &decoder_target);
-            checkpoint_avg_loss += iter_loss;
-
-            if ((iter + 1) % FLAGS_checkpoint_per_iter == 0){
-                ++checkpoint;
-                float loss = checkpoint_avg_loss / FLAGS_checkpoint_per_iter;
-                checkpoint_avg_loss = 0.0;
-
-                float perplexity = exp(loss);
-                fprintf(stderr, " iter= %d, loss = %6f, ppl = %6f\n", iter, loss, perplexity);
-
-                losses.push_back(loss);
+            model.encode(&encoder_input);
+            for(int t = 0 ; t < max_target_len; ++t){
+                decoder_input = model.step(beam_size, &decoder_input, t);
             }
         }
-        model.save_model(FLAGS_save_model_dir + "/inference");
     }
 }// namespace seq2seq
 

@@ -7,9 +7,12 @@
 
 namespace seq2seq{
     struct Seq2SeqModel{
-        void init(int encoder_seq_len, int decoder_seq_len, string loss_type, string optimizer_type, float lr);
+        void init_train(int encoder_seq_len, int decoder_seq_len, string loss_type, string optimizer_type, float lr);
+        void init_inference(int encoder_seq_len);
         float forward(Blob* encoder_input, Blob* decoder_input, Blob* decoder_target);
         void backward(Blob* encoder_input, Blob* decoder_input, Blob* decoder_target);
+        void encode(Blob* encoder_input);
+        void step(int beam_size, Blob* decoder_input);
         void clip_gradients(float max_gradient_norm);
         void optimize(Blob* encoder_input, Blob* decoder_input);
         void set_lr_decay(float decay);

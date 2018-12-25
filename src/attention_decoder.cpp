@@ -87,7 +87,7 @@ namespace seq2seq {
 		_gate.malloced();
 
 		///////////////////////////////////////////////////////////////
-			// alignment model related
+		// alignment model related
 		_context.set_dim(_max_target_seq_len, _batch_size, 2 * _hidden_size);
 		_context.malloced();
 
@@ -320,9 +320,30 @@ namespace seq2seq {
 		// NOTICE: grads wrt encoder_hidden, and grads wrt _param_att_w, will be computed after recurrent bp ends
 	}
 
-	void AttentionDecoder::forward(Blob* input, Blob* encoder_hidden, Blob* output) {
-		_source_seq_len = encoder_hidden->dim0;
-		_target_seq_len = input->dim0;
+
+
+    void AttentionDecoder::maxout(Blob* _pre_maxout, Blob* input, Blob* output){
+    	float* pre_maxout_data = _pre_maxout.device_data;
+    	gpu_gemm(CblasNoTrans, CblasNoTrans,
+			_target_seq_len * _batch_size, 2 * _maxout_size, _hidden_size,
+            1.0f, _decoder_hidden.device_data, _param_m_u.device_data, 0.0f,
+    		pre_maxout_data);
+
+    	gpu_gemm(CblasNoTrans, CblasNoTrans,
+			_target_seq_len * _batch_size, 2 * _maxout_size, _input_size,
+    		1.0f, input->device_data, _param_m_v.device_data, 1.0f,
+    		pre_maxout_data);
+
+    	gpu_gemm(CblasNoTrans, CblasNoTrans,
+    		_target_seq_len * _batch_size, 2 * _maxout_size, 2 * _hidden_size,
+			1.0f, _context.device_data, _param_m_c.device_data, 1.0f,
+    		pre_maxout_data);
+
+    	maxout_ff(pre_maxout_data, output->device_data, _max_ele_idx.device_data, _target_seq_len * _batch_size * _maxout_size);
+    }
+
+    void AttentionDecoder::compute_h0(Blob* encoder_hidden, int target_seq_len){
+        _source_seq_len = encoder_hidden->dim0;
 
 		// TODO: use a real h0 as initial (as stated in RNNSearch paper)
 		this->compute_h0_ff(encoder_hidden);
@@ -335,15 +356,20 @@ namespace seq2seq {
 			1.0f, encoder_hidden->device_data, _param_att_u.device_data, 0.0f,
 			_at_u_terms.device_data);
 
-		float* pre_gate_data_w = _pre_gate.device_data;
-		float* pre_gate_data_u = _pre_gate.device_data + _target_seq_len * _batch_size * 3 * _hidden_size;
-		float* pre_gate_data_c = _pre_gate.device_data + _target_seq_len * _batch_size * 6 * _hidden_size;
+        _pre_gate_data_w = _pre_gate.device_data;
+		_pre_gate_data_u = _pre_gate.device_data + _target_seq_len * _batch_size * 3 * _hidden_size;
+		_pre_gate_data_c = _pre_gate.device_data + _target_seq_len * _batch_size * 6 * _hidden_size;
 
 		// precompute pregate of input to hidden
 		gpu_gemm(CblasNoTrans, CblasNoTrans,
-			_target_seq_len * _batch_size, 3 * _hidden_size, _input_size,
+			target_seq_len * _batch_size, 3 * _hidden_size, _input_size,
 			1.0f, input->device_data, _param_w.device_data, 0.0f,
-			pre_gate_data_w);
+			_pre_gate_data_w);
+    }
+
+	void AttentionDecoder::recurrent(Blob* input, Blob* encoder_hidden, Blob* output) {
+		_target_seq_len = input->dim0;
+        this->compute_h0(encode_hidden, _target_seq_len);
 
 		// N.B. : caution to order: reset(r) update(i) new gate(h)
 		for (int t = 0; t < _target_seq_len; ++t) {
@@ -351,33 +377,10 @@ namespace seq2seq {
             this->step(encoder_hidden, pre_gate_data_w, pre_gate_data_u, pre_gate_data_c, t);
 		}
 
-
-		///////////////////////////////////////////////////////////////
-			// maxout related
-		float* pre_maxout_data = _pre_maxout.device_data;
-		gpu_gemm(CblasNoTrans, CblasNoTrans,
-			_target_seq_len * _batch_size, 2 * _maxout_size, _hidden_size,
-			1.0f, _decoder_hidden.device_data, _param_m_u.device_data, 0.0f,
-			pre_maxout_data);
-
-		gpu_gemm(CblasNoTrans, CblasNoTrans,
-			_target_seq_len * _batch_size, 2 * _maxout_size, _input_size,
-			1.0f, input->device_data, _param_m_v.device_data, 1.0f,
-			pre_maxout_data);
-
-		gpu_gemm(CblasNoTrans, CblasNoTrans,
-			_target_seq_len * _batch_size, 2 * _maxout_size, 2 * _hidden_size,
-			1.0f, _context.device_data, _param_m_c.device_data, 1.0f,
-			pre_maxout_data);
-
-		maxout_ff(pre_maxout_data, output->device_data, _max_ele_idx.device_data,
-			_target_seq_len * _batch_size * _maxout_size);
-
+		this->maxout(_pre_maxout, input, output);
 	}
 
-    void AttentionDecoder::step(Blob* encoder_hidden,
-                            float* pre_gate_data_w, float* pre_gate_data_u, float* pre_gate_data_c,
-                            int t){
+    void AttentionDecoder::step(Blob* encoder_hidden, float* pre_gate_data_w, float* pre_gate_data_u, float* pre_gate_data_c, int t){
         // compute dynamic context
         float* context_data_t = _context.device_data + t * _batch_size * 2 * _hidden_size;
         float* h_data_tm1 = t > 0 ? _decoder_hidden.device_data + (t - 1) * _batch_size * _hidden_size : _h0.device_data;
@@ -386,7 +389,7 @@ namespace seq2seq {
         float* pre_gate_data_w_t = pre_gate_data_w + t * _batch_size * 3 * _hidden_size;
         float* pre_gate_data_u_t = pre_gate_data_u + t * _batch_size * 3 * _hidden_size;
         float* pre_gate_data_c_t = pre_gate_data_c + t * _batch_size * 3 * _hidden_size;
-        float* gate_data_t = _gate.device_data + t * _batch_size * 3 * _hidden_size;
+        float* gate_data_t     = _gate.device_data + t * _batch_size * 3 * _hidden_size;
 
         this->compute_dynamic_context(encoder_hidden, h_data_tm1, t);
 

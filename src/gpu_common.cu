@@ -45,6 +45,11 @@ namespace seq2seq {
         }
     }
 
+    // TODO: return the result of real examples (not pad_id)
+    void cross_entropy_loss_ff(const float* input, const float* labels, float* output, int batch, int num_labels, int pad_id) {
+        cross_entropy_loss_ff_kernel<<<GET_BLOCKS(batch), CUDA_NUM_THREADS>>>(input, labels, output, batch, num_labels, pad_id);
+    }
+
     __global__
     void focal_loss_ff_kernel(const float* input, const float* labels, float* output,
             int batch, int num_labels, float gamma, int pad_id) {
@@ -59,38 +64,11 @@ namespace seq2seq {
         }
     }
 
-    // TODO: return the result of real examples (not pad_id)
-    void cross_entropy_loss_ff(const float* input, const float* labels, float* output, int batch, int num_labels, int pad_id) {
-        cross_entropy_loss_ff_kernel<<<GET_BLOCKS(batch), CUDA_NUM_THREADS>>>(input, labels, output, batch,num_labels,pad_id);
-    }
-
     void focal_loss_ff(const float* input, const float* labels, float* output,
         int batch, int num_labels,float gamma, int pad_id) {
         focal_loss_ff_kernel<<<GET_BLOCKS(batch), CUDA_NUM_THREADS>>>(
                 input, labels, output,
                 batch,num_labels,gamma,pad_id);
-    }
-
-    void TopK_ff(const float* input, float* output, sort_type type, int size, float ratio,  int pad_id){
-        // sort the array
-        for(int i=0;i<size;i++){
-            output[i]=input[i];
-        }
-        std::sort(output,output+size);
-        int len=size*(1.-ratio);
-        if(type==sort_type::LARGE){
-            for(int i=len;i<size;++i){         // remove the bottom part
-                output[i]=pad_id;
-            }
-        }else if (type == sort_type::SMALL){
-            for(int i=0;i<len;++i){             // remove the top part
-                output[i]=0;
-            }
-        }else if(type == sort_type::COMBO){
-            for(int i=len/2;i<size-len/2;++i){   // remove the middle part
-                output[i]=pad_id;
-            }
-        }
     }
 
     __global__
@@ -204,8 +182,7 @@ namespace seq2seq {
         }
     }
 
-    void compute_context(
-            const float* attention_weights, const float* encoder_hidden,
+    void compute_context(const float* attention_weights, const float* encoder_hidden,
             float* context, int seq_len, int batch_size, int hidden_size) {
 
         compute_context_kernel<<<GET_BLOCKS(batch_size * 2 * hidden_size), CUDA_NUM_THREADS>>>(
@@ -397,8 +374,7 @@ namespace seq2seq {
     }
 
     __global__
-    void copy_for_decoder_h0_data_kernel(const float* encoder_hidden_data,float* h0_data,
-            int batch_size,int hidden_size) {
+    void copy_for_decoder_h0_data_kernel(const float* encoder_hidden_data, float* h0_data, int batch_size,int hidden_size) {
         CUDA_KERNEL_LOOP(i, batch_size * hidden_size) {
             int batch_id = i / hidden_size;
             int k = i % hidden_size;
@@ -406,13 +382,8 @@ namespace seq2seq {
         }
     }
 
-    void copy_for_decoder_h0_data(const float* encoder_hidden_data, float* h0_data,
-            int batch_size, int hidden_size) {
-        copy_for_decoder_h0_data_kernel<<<GET_BLOCKS(batch_size * hidden_size), CUDA_NUM_THREADS>>>(
-                encoder_hidden_data,
-                h0_data,
-                batch_size,
-                hidden_size);
+    void copy_for_decoder_h0_data(const float* encoder_hidden_data, float* h0_data, int batch_size, int hidden_size) {
+        copy_for_decoder_h0_data_kernel<<<GET_BLOCKS(batch_size * hidden_size), CUDA_NUM_THREADS>>>(encoder_hidden_data, h0_data, batch_size, hidden_size);
     }
     __global__
     void copy_for_decoder_h0_diff_kernel(const float* h0_diff, float* encoder_hidden_diff,
@@ -433,8 +404,7 @@ namespace seq2seq {
     }
 
     __global__
-    void maxout_ff_kernel(const float* pre_maxout_data, float* maxout_data,
-            float* maxout_ele_idx, int total_output_size) {
+    void maxout_ff_kernel(const float* pre_maxout_data, float* maxout_data, float* maxout_ele_idx, int total_output_size) {
         CUDA_KERNEL_LOOP(i, total_output_size) {
             int k = 2 * i;
             int kp1 = 2 * i + 1;
@@ -448,13 +418,8 @@ namespace seq2seq {
         }
     }
 
-    void maxout_ff(const float* pre_maxout_data, float* maxout_data,
-        float* maxout_ele_idx, int total_output_size) {
-        maxout_ff_kernel<<<GET_BLOCKS(total_output_size), CUDA_NUM_THREADS>>>(
-                pre_maxout_data,
-                maxout_data,
-                maxout_ele_idx,
-                total_output_size);
+    void maxout_ff(const float* pre_maxout_data, float* maxout_data, float* maxout_ele_idx, int total_output_size) {
+        maxout_ff_kernel<<<GET_BLOCKS(total_output_size), CUDA_NUM_THREADS>>>(pre_maxout_data, maxout_data, maxout_ele_idx, total_output_size);
     }
 
     __global__
