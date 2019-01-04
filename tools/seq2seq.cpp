@@ -102,7 +102,7 @@ namespace seq2seq{
         Seq2SeqModel model;
 
         model.set_param(reader.source_dict_size(), reader.target_dict_size(), batch_size, FLAGS_emb_size, FLAGS_hidden_size);
-        model.init_inference(max_encoder_len, max_decoder_len);
+        model.init_inference(max_encoder_len, beam_size);
         fprintf(stderr, "init ended\n");
 
         if (FLAGS_load_model_dir.size() > 0){

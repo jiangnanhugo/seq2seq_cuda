@@ -115,7 +115,7 @@ namespace seq2seq{
 
         // batch * 2 * hidden_size
         encoder_rnn_final_hidden.set_dim(encoder_emb_blob.dim1, 2 * _hidden_size, 1);
-        encoder_rnn_layer.forward(&encoder_emb_blob, &encoder_rnn_blob, NULL, encoder_rnn_final_hidden, NULL);
+        encoder_rnn_layer.forward(&encoder_emb_blob, &encoder_rnn_blob, NULL, &encoder_rnn_final_hidden, NULL);
     }
 
     float Seq2SeqModel::forward(Blob *encoder_input, Blob *decoder_input, Blob *decoder_target){
