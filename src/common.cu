@@ -19,11 +19,11 @@ namespace seq2seq{
             int j = i - 1;
             while (j >= 0 && arr[j] > key) {
                 arr[j + 1] = arr[j];
-                if( j+1 < beam_size){idx[j + 1] = idx[j];}
+                if( j + 1 < beam_size){ idx[j + 1] = idx[j];}
                 j = j - 1;
-        }
-        arr[j + 1] = key;
-        if( j+1 < beam_size){idx[j + 1] = i;}
+            }
+            arr[j + 1] = key;
+            if( j + 1 < beam_size){ idx[j + 1] = i;}
         }
     }
 
@@ -53,18 +53,17 @@ namespace seq2seq{
 		cublasOperation_t cuTransB = (TransB == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
 
 		//    fprintf(stderr, "n=%d m=%d k=%d lda=%d ldb=%d\n", N, M, K, lda, ldb);
-		cublasErrCheck(
-				cublasSgemm(GlobalAssets::instance()->cublasHandle(), cuTransB, cuTransA,
-					N, M, K, &alpha, B, ldb, A, lda, &beta, C, N));
+		cublasErrCheck(cublasSgemm(GlobalAssets::instance()->cublasHandle(),
+                                   cuTransB, cuTransA,
+					               N, M, K, &alpha, B, ldb, A, lda, &beta, C, N));
 	}
 
-	void gpu_gemv(const CBLAS_TRANSPOSE TransA, const int M,
-			const int N, const float alpha, const float* A, const float* x,
-			const float beta, float* y) {
+	void gpu_gemv(const CBLAS_TRANSPOSE TransA,
+                  const int M, const int N,
+                  const float alpha, const float* A, const float* x, const float beta, float* y) {
 		cublasOperation_t cuTransA = (TransA == CblasNoTrans) ? CUBLAS_OP_T : CUBLAS_OP_N;
 		cublasErrCheck(cublasSgemv(GlobalAssets::instance()->cublasHandle(),
-					cuTransA, N, M, &alpha,
-					A, N, x, 1, &beta, y, 1));
+                                   cuTransA, N, M, &alpha, A, N, x, 1, &beta, y, 1));
 	}
 
 	float uniform_rand(float min, float max) {
@@ -90,7 +89,7 @@ namespace seq2seq{
 			*buffer = 0;
 			for (int j = 0; j < col; ++j) {
 				int len = strlen(buffer);
-				snprintf(buffer + len, 102400 - len, 	"%+.6f%s", data[i * col + j], j == col - 1 ? "" : ", ");
+				snprintf(buffer + len, 102400 - len, "%+.6f%s", data[i * col + j], j == col - 1 ? "" : ", ");
 			}
 			fprintf(stderr, "[%s]%s", buffer, i == row - 1 ? "" : "\n");
 		}
@@ -109,22 +108,21 @@ namespace seq2seq{
 	}
 
 	template <typename Dtype>
-		void display_matrix(const Dtype* data, int row, int col, int dim2/* = -1*/) {
-			if (dim2 != -1) {
-				fprintf(stderr, "maxtrix at mem:%p, %d, %d, %d\n", data, row, col, dim2);
-				for (int i = 0; i < row; ++i) {
+	void display_matrix(const Dtype* data, int row, int col, int dim2/* = -1*/) {
+	   if (dim2 != -1) {
+           fprintf(stderr, "maxtrix at mem:%p, %d, %d, %d\n", data, row, col, dim2);
+           for (int i = 0; i < row; ++i) {
 					fprintf(stderr, "[");
 					display_matrix_helper(data + i * col * dim2, col, dim2);
 					fprintf(stderr, "]\n\n");
-				}
-				return;
 			}
-			else {
-				fprintf(stderr, "maxtrix at mem:%p, %d, %d\n", data, row, col);
-				display_matrix_helper(data, row, col);
-				fprintf(stderr, "\n");
-			}
+			return;
+		}else {
+			fprintf(stderr, "maxtrix at mem:%p, %d, %d\n", data, row, col);
+			display_matrix_helper(data, row, col);
+			fprintf(stderr, "\n");
 		}
+	}
 	template
 		void display_matrix<float>(const float* data, int row, int col, int dim2/* = -1*/);
 

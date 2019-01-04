@@ -41,10 +41,6 @@ namespace seq2seq{
 		emb_ff(_w.device_data, input->device_data, output->device_data, batch, input->dim1, _emb_size);
 	}
 
-
-
-    // begin emb layer
-
     __global__
     void emb_bp_kernel(float* w, const float* input, const float* grad_output, int seq_length, int batch_size, int emb_size) {
         int total = seq_length * batch_size * emb_size;
@@ -61,8 +57,6 @@ namespace seq2seq{
         int total = seq_length * batch_size * emb_size;
         emb_bp_kernel<<<GET_BLOCKS(total), CUDA_NUM_THREADS>>>(w, input, grad_output, seq_length, batch_size, emb_size);
     }
-
-
 
 	void Emb_layer::backward(Blob* input, Blob* output){
 		int seq_length = input->dim0;

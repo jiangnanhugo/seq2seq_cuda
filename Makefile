@@ -70,6 +70,7 @@ NVCC_CFLAGS= -ccbin $(CPP) -g -std=c++11 -use_fast_math -G -Xcompiler -fPIC
 LDFLAGS+= -L$(CUDA_LIB) -lcuda -lcudart -lcublas -lcurand
 NVCC_LDFLAGS+= -L$(CUDA_LIB) -lcuda -lcudart -lcublas -lcurand
 endif
+
 ifeq ($(CUDNN), 1)
 COMMON+= -DCUDNN
 CFLAGS+= -DCUDNN
@@ -78,7 +79,7 @@ NVCC_LDFLAGS+= -lcudnn
 endif
 
 OBJ=common.o embd.o softmax.o blob.o loss.o data_reader.o cudnn_util.o gpu_common.o fc.o activation.o rnn.o optimizer.o model.o attention_decoder.o
-EXECOBJA= common.o embd.o softmax.o blob.o loss.o data_reader.o cudnn_util.o gpu_common.o fc.o activation.o rnn.o optimizer.o model.o attention_decoder.o seq2seq.o 
+EXECOBJA= common.o embd.o softmax.o blob.o loss.o data_reader.o cudnn_util.o gpu_common.o fc.o activation.o rnn.o optimizer.o model.o attention_decoder.o seq2seq.o
 
 EXECOBJ = $(addprefix $(OBJDIR), $(EXECOBJA))
 OBJS = $(addprefix $(OBJDIR), $(OBJ))

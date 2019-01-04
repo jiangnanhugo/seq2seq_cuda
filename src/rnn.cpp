@@ -27,12 +27,12 @@ namespace seq2seq{
 			cudnnErrCheck(cudnnCreateTensorDescriptor(&_dx_desc[i]));
 			cudnnErrCheck(cudnnCreateTensorDescriptor(&_dy_desc[i]));
 
-			dimA[0]=_batch_size;
-            dimA[1]=_input_size;
-            dimA[2]=1;
+			dimA[0] = _batch_size;
+            dimA[1] = _input_size;
+            dimA[2] = 1;
 			strideA[0] = dimA[2] * dimA[1];
-            strideA[1]= dimA[2];
-            strideA[2]=1;
+            strideA[1] = dimA[2];
+            strideA[2] = 1;
 
 			cudnnErrCheck(cudnnSetTensorNdDescriptor(_x_desc[i], CUDNN_DATA_FLOAT, 3, dimA, strideA));
 			cudnnErrCheck(cudnnSetTensorNdDescriptor(_dx_desc[i], CUDNN_DATA_FLOAT, 3, dimA, strideA));
@@ -294,7 +294,7 @@ namespace seq2seq{
 	}
 
     // initial_hidden initial_cell = final_hidden final_cell = NULL
-	void RNN_layer::forward(Blob* input, Blob* output, Blob* initial_hidden, Blob* initial_cell, Blob* final_hidden, Blob* final_cell ) {
+	void RNN_layer::forward(Blob* input, Blob* output, Blob* initial_hidden, Blob* initial_cell, Blob* final_hidden, Blob* final_cell) {
 		int seq_length = input->dim0;
 		int batch = input->dim1;
 		int input_size = input->dim2;

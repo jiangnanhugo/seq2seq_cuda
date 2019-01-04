@@ -123,12 +123,11 @@ namespace seq2seq{
         float checkpoint_avg_loss = 0.0;
 
         bool ret = false;
-        int iter = 0;
         while((ret = reader.get_batch(&encoder_input, &decoder_input)) != false){
             fprintf(stderr, "calc loss....\n");
             model.encode(&encoder_input);
             for(int t = 0 ; t < max_target_len; ++t){
-                decoder_input = model.step(beam_size, &decoder_input, t);
+                model.step(&decoder_input, t);
             }
         }
     }

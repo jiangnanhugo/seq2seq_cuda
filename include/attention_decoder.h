@@ -21,8 +21,9 @@ namespace seq2seq {
 
             void backward(Blob* input, Blob* encoder_hidden, Blob* output);
             void step(Blob* encoder_hidden, float* data_w, float* data_u, float* data_c, int t);
+            void step(Blob* encoder_hidden, float* data_w, float* data_u, float* data_c);
             void maxout(Blob* _pre_maxout, Blob* input, Blob* output);
-            void compute_h0(Blob* encoder_hidden, int target_seq_len);
+            void pre_compute_data(Blob* input, Blob* encoder_hidden);
 
             Blob* param_w() { return &_param_w;}
             Blob* param_u() { return &_param_u;}
@@ -86,6 +87,7 @@ namespace seq2seq {
             void set_all_diff_to_zero(Blob* input, Blob* encoder_hidden);
 
             void compute_dynamic_context(const Blob* encoder_hidden, const float* h_tm1_data, const int t);
+            void compute_dynamic_context(const Blob* encoder_hidden, const float* h_tm1_data);
 
             void bp_dynamic_context(Blob* encoder_hidden, const float* h_data_tm1, float* h_diff_tm1, const int t);
             void compute_h0_ff(Blob* encoder_hidden);

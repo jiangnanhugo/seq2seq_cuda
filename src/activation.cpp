@@ -1,4 +1,4 @@
-	#include "activation.h"
+#include "activation.h"
 
 namespace seq2seq {
 	/* mode = CUDNN_ACTIVATION_SIGMOID */

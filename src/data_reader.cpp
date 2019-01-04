@@ -34,18 +34,12 @@ namespace seq2seq {
         assert(source_f.good());
 
         string line;
-        size_t line_num = 0;
 
         vector<int> source_idx, target_idx;
         while (getline(source_f, line)){
             int pos = line.find(_pattern);
             string source = line.substr(0, pos);
             string target = line.substr(pos + _pattern.length());
-
-            ++ line_num;
-            if (line_num % 100000 == 0) {
-                fprintf(stderr, "%ld lines loaded\n", line_num);
-            }
 
             this->str_to_idx(source, source_idx, _source_dict);
             this->str_to_idx(target, target_idx, _target_dict);
@@ -59,7 +53,7 @@ namespace seq2seq {
         }
 
         size_t data_size = _all_data.size();
-        fprintf(stderr, "examples loaded: %ld\n", data_size);
+        fprintf(stderr, "pairs loaded: %ld\n", data_size);
 
         _data_idx.reset(new size_t[data_size]);
 

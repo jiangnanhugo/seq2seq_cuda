@@ -25,7 +25,7 @@ namespace seq2seq{
     }
 
     void Blob::copy_data_to_device() {
-        cudaErrCheck(cudaMemcpy(device_data,host_data, size() * sizeof(float), cudaMemcpyHostToDevice));
+        cudaErrCheck(cudaMemcpy(device_data, host_data, size() * sizeof(float), cudaMemcpyHostToDevice));
     }
 
     void Blob::copy_data_to_host() {
@@ -45,8 +45,7 @@ namespace seq2seq{
         this->copy_data_to_host();
         const float* data = this->host_data;
         FILE* fp = fopen(filename.c_str(), "w");
-        int row = dim0;
-        int col = dim1 * dim2;
+        int row = dim0, col = dim1 * dim2;
         for (int i = 0; i < row; ++i) {
             for (int j = 0; j < col; ++j) {
                 fprintf(fp, "%+.8f%s", data[i * col + j], j == col - 1 ? "" : " ");
@@ -65,7 +64,6 @@ namespace seq2seq{
         string line;
         vector<string> strs;
         int row = dim0, col = dim1 * dim2;
-
         for (int i = 0; i < row; ++i) {
             getline(infile, line);
             split(line, strs);
