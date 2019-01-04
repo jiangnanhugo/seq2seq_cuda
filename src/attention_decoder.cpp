@@ -131,7 +131,7 @@ namespace seq2seq {
 		initGPUData(_h0.device_data, _h0.size(), 0.0f);
 	}
 
-	void AttentionDecoder::const Blob* encoder_hidden, const float* h_data_tm1, const int t) {
+	void AttentionDecoder::compute_dynamic_context(const Blob* encoder_hidden, const float* h_data_tm1, const int t) {
 		// at_w_terms = T.dot(h_data_tm1, At_W)
 		gpu_gemm(CblasNoTrans, CblasNoTrans,
 			_batch_size, _alignment_model_size, _hidden_size,
@@ -236,7 +236,7 @@ namespace seq2seq {
 	}
 
 
-    void AttentionDecoder::maxout(Blob* _pre_maxout, Blob* input, Blob* output){
+    void AttentionDecoder::maxout(Blob* input, Blob* output){
     	float* pre_maxout_data = _pre_maxout.device_data;
     	gpu_gemm(CblasNoTrans, CblasNoTrans,
 			_target_seq_len * _batch_size, 2 * _maxout_size, _hidden_size,
@@ -292,7 +292,7 @@ namespace seq2seq {
 			// compute dynamic context
             this->step(encoder_hidden, t);
 		}
-		this->maxout(_pre_maxout, input, output);
+		this->maxout(input, output); //_pre_maxout
 	}
 
     void AttentionDecoder::step(Blob* encoder_hidden, int t){

@@ -20,9 +20,9 @@ namespace seq2seq {
             void recurrent(Blob* input, Blob* encoder_hidden, Blob* output);
 
             void backward(Blob* input, Blob* encoder_hidden, Blob* output);
-            void step(Blob* encoder_hidden, float* data_w, float* data_u, float* data_c, int t);
-            void step(Blob* encoder_hidden, float* data_w, float* data_u, float* data_c);
-            void maxout(Blob* _pre_maxout, Blob* input, Blob* output);
+            void step(Blob* encoder_hidden, int t);
+            void step(Blob* encoder_hidden, bool is_init);
+            void maxout(Blob* input, Blob* output);
             void pre_compute_data(Blob* input, Blob* encoder_hidden);
 
             Blob* param_w() { return &_param_w;}

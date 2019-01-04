@@ -166,17 +166,16 @@ namespace seq2seq{
         return avg_loss;
     }
 
-    void Seq2SeqModel::step(Blob* decoder_input, int timestep){
+    void Seq2SeqModel::step(Blob* decoder_input, bool is_init){
         // seq_len * batch * emb_size
         decoder_emb_blob.set_dim(1, decoder_input->dim1, _emb_size);
         decoder_emb_layer.forward(decoder_input, &decoder_emb_blob);
 
         // seq_len(=1) * batch * hidden_size
         decoder_rnn_blob.set_dim(1, decoder_emb_blob.dim1, _hidden_size);
-        decoder_rnn_layer.pre_compute_data(&decoder_emb_blob, &encoder_rnn_blob, &decoder_rnn_blob);
-        decoder_rnn_layer.step(&encoder_rnn_blob, timestep);
-        Blob* pre_maxout = decoder_rnn_layer.get_pre_maxout();
-        decoder_rnn_layer.maxout(&decoder_emb_blob, &pre_maxout, &decoder_rnn_blob);
+        decoder_rnn_layer.pre_compute_data(&decoder_emb_blob, &encoder_rnn_blob);
+        decoder_rnn_layer.step(&encoder_rnn_blob, is_init);
+        decoder_rnn_layer.maxout(&decoder_emb_blob, &decoder_rnn_blob);
 
         // before fc, reshpae the input to [seq_len(=1) * batch, hidden_size]
         decoder_rnn_blob.set_dim(decoder_rnn_blob.dim1, decoder_rnn_blob.dim2, 1);
@@ -192,9 +191,9 @@ namespace seq2seq{
         softmax_result_blob.copy_data_to_host();
         float* probs = softmax_result_blob.host_data;
         int len =  _batch_size * _target_voc_size;
-        decoder_input.copy_data_to_host();
-        argsort(probs, decoder_input.host_data, _batch_size * _target_voc_size, _batch_size);
-        decoder_input.copy_data_to_device();
+        decoder_input->copy_data_to_host();
+        argsort(probs, decoder_input->host_data, _batch_size * _target_voc_size, _batch_size);
+        decoder_input->copy_data_to_device();
     }
 
     void Seq2SeqModel::backward(Blob *encoder_input, Blob *decoder_input, Blob *decoder_target){

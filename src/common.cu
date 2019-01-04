@@ -13,7 +13,7 @@ namespace seq2seq{
 		return g_asset.get();
 	}
 
-    void insert_sort(float *arr, float *idx, int n, int beam_size) {
+    void insert_sort(float *arr, float *idx, int n, int beam_size){
         for (int i = 1; i < n; i++) {
             int key = arr[i];
             int j = i - 1;

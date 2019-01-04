@@ -117,17 +117,12 @@ namespace seq2seq{
         encoder_input.malloced();
         decoder_input.malloced();
 
-        vector<float> losses;
-        //====================start optimization===========
-        int checkpoint = 0;
-        float checkpoint_avg_loss = 0.0;
-
         bool ret = false;
         while((ret = reader.get_batch(&encoder_input, &decoder_input)) != false){
             fprintf(stderr, "calc loss....\n");
             model.encode(&encoder_input);
-            for(int t = 0 ; t < max_target_len; ++t){
-                model.step(&decoder_input, t);
+            for(int t = 0 ; t < max_decoder_len; ++t){
+                model.step(&decoder_input, t==0? true : false);
             }
         }
     }
