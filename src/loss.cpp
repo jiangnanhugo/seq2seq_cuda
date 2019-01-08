@@ -6,16 +6,16 @@ namespace seq2seq{
 		int batch = input->dim0;
 		int num_labels = input->dim1;
         if(_error_type == LOSS_TYPE::CROSS_ENTROPY){
-            cross_entropy_loss_ff(input->device_data, labels->device_data, output->device_data,
+            cross_entropy_loss_ff(input->device_w, labels->device_w, output->device_w,
 						          batch, num_labels, _pad_id);
         }else if(_error_type == LOSS_TYPE::FOCAL_LOSS){
             float gamma=2.0;
-            focal_loss_ff(input->device_data, labels->device_data, output->device_data, batch, num_labels, gamma, _pad_id);
+            focal_loss_ff(input->device_w, labels->device_w, output->device_w, batch, num_labels, gamma, _pad_id);
         }
         // else if(_error_type == LOSS_TYPE::OHEM){
         //     sort_type type = sort_type::LARGE;
         //     float ratio = 0.5;
-        //     OHEM_ff(input->device_data, labels->device_data, output->device_data, type, batch, ratio, _pad_id);
+        //     OHEM_ff(input->device_w, labels->device_w, output->device_w, type, batch, ratio, _pad_id);
         // }
 	}
 
@@ -24,9 +24,9 @@ namespace seq2seq{
 		int batch = input->dim0;
 		int num_labels = input->dim1;
         if(_error_type == LOSS_TYPE::CROSS_ENTROPY){
-            cross_entropy_loss_bp(input->device_data, labels->device_data, input->device_diff, batch, num_labels, loss_factor,_pad_id);
+            cross_entropy_loss_bp(input->device_w, labels->device_w, input->device_g, batch, num_labels, loss_factor,_pad_id);
         }else if(_error_type == LOSS_TYPE::FOCAL_LOSS){
-            focal_loss_bp(input->device_data, labels->device_data, input->device_diff, batch, num_labels, loss_factor,_pad_id);
+            focal_loss_bp(input->device_w, labels->device_w, input->device_g, batch, num_labels, loss_factor,_pad_id);
         }
 	}
 

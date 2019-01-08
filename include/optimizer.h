@@ -3,9 +3,10 @@
 
 #include "blob.h"
 #include "gpu_common.h"
+#include <cmath>
 
 namespace seq2seq{
-    enum OPTIMIZER_TYPE{SGD, SGDM, ADAM, RMSPROP, ADAGRAD, NESTROV};
+    enum OPTIMIZER_TYPE{SGD, SGDM, ADAM};
 
     class Optimzer{
         public:
@@ -14,22 +15,28 @@ namespace seq2seq{
                 _optimizer_type = optimizer_type;
             }
             inline void set_lr(float lr){
-                _lr=lr;
+                _lr = lr;
             }
             inline float get_lr(){
                 return _lr;
             }
+            inline void set_t(float t){
+                _t = t;
+            }
+            inline float get_t(){
+                return _t;
+            }
             void update(Blob* param);
-            void Sgd(int size, float* diff, float *data);
-            void Sgd_momentum(int size, float* moment, float* diff, float *data);
+            void Sgd(float *w, float* grad, int size);
+            void Sgd_momentum(float *w, float* grad, float* m, int size);
 
-            // void Adam();
-            // void RMSProp();
-            // void Adagrad();
-            // void Nestrov();
+            void Adam(float *w, float* g, float* m, float* v, int size);
 
             OPTIMIZER_TYPE _optimizer_type;
-            float _beta, _alpha, _lr;
+            float _lr, _t;                      // learning_rate, time_step
     };
+
+    void adam_update(float* w, float* g, float* m, float * v,
+                    int N, float beta1, float beta2, float correction, float eps, const float lr);
 }
 #endif

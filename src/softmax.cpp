@@ -19,15 +19,15 @@ namespace seq2seq{
 
         cudnnErrCheck(cudnnSoftmaxForward(GlobalAssets::instance()->cudnnHandle(),
                     _alg, CUDNN_SOFTMAX_MODE_INSTANCE,
-                    cudnn::dataType<float>::one, _input_desc, input->device_data,
-                    cudnn::dataType<float>::zero, _output_desc, output->device_data));
+                    cudnn::dataType<float>::one, _input_desc, input->device_w,
+                    cudnn::dataType<float>::zero, _output_desc, output->device_w));
     }
 
     void Softmax_layer::backward(Blob* input, Blob* output) {
         cudnnErrCheck(cudnnSoftmaxBackward(GlobalAssets::instance()->cudnnHandle(),
                     _alg, CUDNN_SOFTMAX_MODE_INSTANCE,
-                    cudnn::dataType<float>::one, _output_desc, output->device_data,
-                    _output_desc, output->device_diff,
-                    cudnn::dataType<float>::zero, _input_desc, input->device_diff));
+                    cudnn::dataType<float>::one, _output_desc, output->device_w,
+                    _output_desc, output->device_g,
+                    cudnn::dataType<float>::zero, _input_desc, input->device_g));
     }
 }

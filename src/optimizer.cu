@@ -3,54 +3,54 @@
 namespace seq2seq{
 
     void Optimzer::update(Blob* param){
-        if(_optimizer_type==OPTIMIZER_TYPE::SGD){
-            Sgd(param->size(), param->device_diff, param->device_data);
-        }else if(_optimizer_type==OPTIMIZER_TYPE::SGDM){
-            Sgd_momentum(param->size(), param->device_moment1, param->device_diff, param->device_data);
-        // }else if(_optimizer_type==OPTIMIZER_TYPE::ADAM){
-        //     Adam();
-        // }else if(_optimizer_type==OPTIMIZER_TYPE::RMSPROP){
-        //     RMSProp();
-        // }else if(_optimizer_type==OPTIMIZER_TYPE::ADAGRAD){
-        //     Adagrad();
-        // }else if(_optimizer_type==OPTIMIZER_TYPE::NESTROV){
-        //     Nestrov();
+        if (_optimizer_type == OPTIMIZER_TYPE::SGD) {
+            Sgd(param->device_w, param->device_g, param->size());
+        } else if (_optimizer_type == OPTIMIZER_TYPE::SGDM) {
+            Sgd_momentum(param->device_w, param->device_g, param->device_m, param->size());
+        } else if (_optimizer_type == OPTIMIZER_TYPE::ADAM) {
+            Adam(param->device_w, param->device_g, param->device_m, param->device_v, param->size());
         }
     }
-    void Optimzer::Sgd(int size, float* diff, float *data){
-        // data = _lr * diff + data
-        cublasErrCheck(cublasSaxpy(GlobalAssets::instance()->cublasHandle(), size, &_lr, diff, 1, data, 1));
+    void Optimzer::Sgd(float *w, float* grad, int size){
+        // w = _lr * grad + w
+        cublasErrCheck(cublasSaxpy(GlobalAssets::instance()->cublasHandle(), size, &_lr, grad, 1, w, 1));
     }
 
-    void Optimzer::Sgd_momentum(int size, float* moment, float* diff, float *data){
-        // moment= beta * moment + diff
-        cublasErrCheck(cublasSaxpy(GlobalAssets::instance()->cublasHandle(), size, &_beta, moment, 1, diff, 1));
+    void Optimzer::Sgd_momentum(float *data, float* diff, float* moment, int size){
+        // moment = beta * moment + diff
+        float beta = 0.9;
+        cublasErrCheck(cublasSaxpy(GlobalAssets::instance()->cublasHandle(), size, &beta, moment, 1, diff, 1));
         // data = _lr * moment + data
         cublasErrCheck(cublasSaxpy(GlobalAssets::instance()->cublasHandle(), size, &_lr, moment, 1, data, 1));
     }
-    //
-    // void Optimzer::Adam(){
-    //
-    // }
-    //
-    // __global__
-    // void adam_kernel(const float* w, const float* input, float* output, int batch_size, int seq_length, int emb_size) {
-    //     int total = seq_length * batch_size * emb_size;
-    //     CUDA_KERNEL_LOOP(i, total) {
-    //         int row = i / emb_size;
-    //         int column = i % emb_size;
-    //
-    //         const float* emb_t = w + static_cast<unsigned int>(input[row]) * emb_size;
-    //         output[i] = emb_t[column];
-    //     }
-    // }
-    //
-    // void Optimizer::adam(const float* w, const float* input, float* output, int batch_size, int seq_length, int emb_size) {
-    //     int total = seq_length * batch_size * emb_size;
-    //     const dim3 blockSize(CUDA_NUM_THREADS, 1, 1);
-    //     const dim3 gridSize(GET_BLOCKS(total), 1, 1);
-    //     adam_kernel<<< gridSize, blockSize >>> (w, input, output, batch_size, seq_length, emb_size);
-    // }
+
+
+    __global__
+    void adam_update_kernel(float* w, float* g, float* m, float * v,
+                            int N, float beta1, float beta2, float correction, float eps, const float lr){
+        CUDA_KERNEL_LOOP(i, N) {
+            float gi = g[i];
+            float mi = m[i] = m[i] * beta1 + gi * (1 - beta1);
+            float vi = v[i] = v[i] * beta2 + gi * gi * (1- beta2);
+            float ng = lr * correction * mi / (sqrtf(vi) + eps);
+            w[i] += ng;
+        }
+    }
+
+    void adam_update(float* w, float* g, float* m, float* v,
+                    int N, float beta1, float beta2, float correction, float eps, const float lr){
+        const dim3 blockSize(CUDA_NUM_THREADS, 1, 1);
+        const dim3 gridSize(GET_BLOCKS(N), 1, 1);
+        adam_update_kernel<<< gridSize, blockSize >>>(w, g, m, v, N, beta1, beta2, correction, eps, lr);
+    }
+
+    void Optimzer::Adam(float *w, float* g, float* m, float* v, int size){
+        const float eps = 1e-8, beta1 = 0.9, beta2 = 0.999;
+        const float correction = sqrt(1. - pow(beta2, _t)) / (1. - pow(beta1, _t));
+        adam_update(w, g, m, v, size, beta1, beta2, correction, eps, _lr);
+    }
+
+
     //
     // void Optimzer::RMSProp(){
     //

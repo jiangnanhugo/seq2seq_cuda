@@ -213,7 +213,7 @@ namespace seq2seq{
 				initGPUData(linLayerMat, filterDimA[0] * filterDimA[1] * filterDimA[2], 0.1f);
 				cudnnErrCheck(cudnnDestroyFilterDescriptor(linLayerMatDesc));
 
-				matrix.device_data = static_cast<float*>(linLayerMat);
+				matrix.device_w = static_cast<float*>(linLayerMat);
 				//matrix.dim0 = filterDimA[0];
 				matrix.dim0 = lin_layer_id < num_linear_layers / 2 ? _input_size : _hidden_size;
 				matrix.dim1 = _hidden_size;
@@ -245,7 +245,7 @@ namespace seq2seq{
 
 				cudnnErrCheck(cudnnDestroyFilterDescriptor(linLayerBiasDesc));
 
-				bias.device_data = static_cast<float*>(linLayerBias);
+				bias.device_w = static_cast<float*>(linLayerBias);
 				bias.dim0 = _hidden_size;
 			}
 		}
@@ -255,13 +255,13 @@ namespace seq2seq{
 			for (size_t j = 0; j < _matrix_blobs[i].size(); ++j) {
 				Blob& matrix = _matrix_blobs[i][j];
 
-				matrix.host_data = (float*)malloc(matrix.size() * sizeof(float));
-				assert(matrix.host_data != NULL);
-				matrix.host_diff = (float*)malloc(matrix.size() * sizeof(float));
-				assert(matrix.host_diff != NULL);
+				matrix.host_w = (float*)malloc(matrix.size() * sizeof(float));
+				assert(matrix.host_w != NULL);
+				matrix.host_g = (float*)malloc(matrix.size() * sizeof(float));
+				assert(matrix.host_g != NULL);
 
-				xavier_fill(matrix.host_data, matrix.size(), matrix.dim0, matrix.dim1);
-				matrix.copy_data_to_device();
+				xavier_fill(matrix.host_w, matrix.size(), matrix.dim0, matrix.dim1);
+				matrix.copy_w_to_device();
 			}
 		}
 
@@ -270,13 +270,13 @@ namespace seq2seq{
 			for (size_t j = 0; j < _bias_blobs[i].size(); ++j) {
 				Blob& bias = _bias_blobs[i][j];
 
-				bias.host_data = (float*)malloc(bias.size() * sizeof(float));
-				assert(bias.host_data != NULL);
-				bias.host_diff = (float*)malloc(bias.size() * sizeof(float));
-				assert(bias.host_diff != NULL);
+				bias.host_w = (float*)malloc(bias.size() * sizeof(float));
+				assert(bias.host_w != NULL);
+				bias.host_g = (float*)malloc(bias.size() * sizeof(float));
+				assert(bias.host_g != NULL);
 
-				constant_fill(bias.host_data, bias.size(), 0.0f);
-				bias.copy_data_to_device();
+				constant_fill(bias.host_w, bias.size(), 0.0f);
+				bias.copy_w_to_device();
 			}
 		}
 
@@ -284,13 +284,13 @@ namespace seq2seq{
 		_param_blob.set_dim(_weights_size / sizeof(float), 1, 1);
 
 		// TODO: be aware of this usage, especially when adding codes to free these memory
-		_param_blob.device_data = static_cast<float*>(_w->get());
-		_param_blob.device_diff = static_cast<float*>(_dw->get());
+		_param_blob.device_w = static_cast<float*>(_w->get());
+		_param_blob.device_g = static_cast<float*>(_dw->get());
 
-		_param_blob.host_data = (float*)malloc(_param_blob.size() * sizeof(float));
-		assert(_param_blob.host_data != NULL);
-		_param_blob.host_diff = (float*)malloc(_param_blob.size() * sizeof(float));
-		assert(_param_blob.host_diff != NULL);
+		_param_blob.host_w = (float*)malloc(_param_blob.size() * sizeof(float));
+		assert(_param_blob.host_w != NULL);
+		_param_blob.host_g = (float*)malloc(_param_blob.size() * sizeof(float));
+		assert(_param_blob.host_g != NULL);
 	}
 
     // initial_hidden initial_cell = final_hidden final_cell = NULL
@@ -307,13 +307,13 @@ namespace seq2seq{
 			cudnnErrCheck(cudnnRNNForwardTraining(GlobalAssets::instance()->cudnnHandle(),
 				_rnn_desc,
 				seq_length,
-				_x_desc, input->device_data,
-				_hx_desc, initial_hidden == NULL ? NULL : initial_hidden->device_data,
-				_cx_desc, initial_cell == NULL ? NULL : initial_cell->device_data,
+				_x_desc, input->device_w,
+				_hx_desc, initial_hidden == NULL ? NULL : initial_hidden->device_w,
+				_cx_desc, initial_cell == NULL ? NULL : initial_cell->device_w,
 				_w_desc, _w->get(),
-				_y_desc, output->device_data,
-				_hy_desc, final_hidden == NULL ? NULL : final_hidden->device_data,
-				_cy_desc, final_cell == NULL ? NULL : final_cell->device_data,
+				_y_desc, output->device_w,
+				_hy_desc, final_hidden == NULL ? NULL : final_hidden->device_w,
+				_cy_desc, final_cell == NULL ? NULL : final_cell->device_w,
 				_work_space->get(), _work_size,
 				_reserve_space->get(), _reserve_size));
 		}else {
@@ -321,13 +321,13 @@ namespace seq2seq{
 			cudnnErrCheck(cudnnRNNForwardInference(GlobalAssets::instance()->cudnnHandle(),
 				_rnn_desc,
 				seq_length,
-				_x_desc, input->device_data,
-				_hx_desc, initial_hidden == NULL ? NULL : initial_hidden->device_data,
-				_cx_desc, initial_cell == NULL ? NULL : initial_cell->device_data,
+				_x_desc, input->device_w,
+				_hx_desc, initial_hidden == NULL ? NULL : initial_hidden->device_w,
+				_cx_desc, initial_cell == NULL ? NULL : initial_cell->device_w,
 				_w_desc, _w->get(),
-				_y_desc, output->device_data,
-				_hy_desc, final_hidden == NULL ? NULL : final_hidden->device_data,
-				_cy_desc, final_cell == NULL ? NULL : final_cell->device_data,
+				_y_desc, output->device_w,
+				_hy_desc, final_hidden == NULL ? NULL : final_hidden->device_w,
+				_cy_desc, final_cell == NULL ? NULL : final_cell->device_w,
 				_work_space->get(),
 				_work_size));
 		}
@@ -360,24 +360,24 @@ namespace seq2seq{
 			_rnn_desc,
 			seq_length,
 			_y_desc,
-			output->device_data,
+			output->device_w,
 			_dy_desc,
-			output->device_diff,
+			output->device_g,
 			_dhy_desc,
-			final_hidden == NULL ? NULL : final_hidden->device_diff,
+			final_hidden == NULL ? NULL : final_hidden->device_g,
 			_dcy_desc,
-			final_cell == NULL ? NULL : final_cell->device_diff,
+			final_cell == NULL ? NULL : final_cell->device_g,
 			_w_desc, _w->get(),
 			_hx_desc,
-			initial_hidden == NULL ? NULL : initial_hidden->device_data,
+			initial_hidden == NULL ? NULL : initial_hidden->device_w,
 			_cx_desc,
-			initial_cell == NULL ? NULL : initial_cell->device_data,
+			initial_cell == NULL ? NULL : initial_cell->device_w,
 			_dx_desc,
-			input->device_diff,
+			input->device_g,
 			_dhx_desc,
-			initial_hidden == NULL ? NULL : initial_hidden->device_diff,
+			initial_hidden == NULL ? NULL : initial_hidden->device_g,
 			_dcx_desc,
-			initial_cell == NULL ? NULL : initial_cell->device_diff,
+			initial_cell == NULL ? NULL : initial_cell->device_g,
 			_work_space->get(), _work_size,
 			_reserve_space->get(), _reserve_size));
 
@@ -388,9 +388,9 @@ namespace seq2seq{
 			GlobalAssets::instance()->cudnnHandle(),
 			_rnn_desc,
 			seq_length,
-			_x_desc, input->device_data,
-			_hx_desc, initial_hidden == NULL ? NULL : initial_hidden->device_data,
-			_y_desc, output->device_data,
+			_x_desc, input->device_w,
+			_hx_desc, initial_hidden == NULL ? NULL : initial_hidden->device_w,
+			_y_desc, output->device_w,
 			_work_space->get(),
 			_work_size,
 			_dw_desc,

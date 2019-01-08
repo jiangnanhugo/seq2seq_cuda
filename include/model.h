@@ -16,6 +16,7 @@ namespace seq2seq{
         void clip_gradients(float max_gradient_norm);
         void optimize(Blob* encoder_input, Blob* decoder_input);
         void set_lr_decay(float decay);
+        void inc_timestep();
 
         void set_param(int source_voc_size, int target_voc_size, int batch_size, int emb_size, int hidden_size);
         void load_model(const string& dirname);
@@ -39,6 +40,7 @@ namespace seq2seq{
 
         private:
         float _loss_factor;
+        float _timestep;
     };
 }
 #endif

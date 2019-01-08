@@ -10,8 +10,10 @@ namespace seq2seq {
     // for simplicity, I use struct here
     struct Blob{
         int dim0, dim1, dim2;
-        float *host_data, *host_diff, *device_data, *device_diff;
-        float *host_moment1, *host_moment2, *device_moment1, *device_moment2;
+        float *host_w, *device_w;      // param
+        float *host_g, *device_g;      // gradient
+        float *host_m, *device_m;      // momentum
+        float *host_v, *device_v;      // velocity
 
         explicit Blob() : dim0(1), dim1(1), dim2(1) {}
         Blob(int d0, int d1, int d2){ dim0=d0; dim1=d1; dim2=d2;}
@@ -20,17 +22,17 @@ namespace seq2seq {
         void set_dim(int d0, int d1, int d2){dim0=d0; dim1=d1; dim2=d2;}
 
         void malloced();
-        void copy_data_to_device();
-        void copy_data_to_host();
-        void copy_diff_to_device();
-        void copy_diff_to_host();
+        void copy_w_to_device();
+        void copy_w_to_host();
+        void copy_grad_to_device();
+        void copy_grad_to_host();
         // saving matrix (ignore dim3) into a text file
         void savetxt(const string& filename);
         // loading matrix (ignore dim3) into a text file
         void loadtxt(const string& filename);
         // for debug purpose
-        void display_data(const string& info = "");
-        void display_diff(const string& info = "");
+        void show_w(const string& info = "");
+        void show_grad(const string& info = "");
     };
 
     // this can be protected by a shared_ptr

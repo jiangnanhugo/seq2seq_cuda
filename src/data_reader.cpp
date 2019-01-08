@@ -11,16 +11,19 @@ namespace seq2seq {
     const string DataReader::_pattern=" <EOS>#TAB#";
 
     seq_pair::seq_pair(const vector<int>& source_vec, const vector<int>& target_vec) {
-        source_idx = new int[source_vec.size()];
+        source_len = source_vec.size();
+        target_len = target_vec.size();
+
+        source_idx = new int[source_len];
         assert(source_idx != NULL);
-        target_idx = new int[target_vec.size()];
+        target_idx = new int[target_len];
         assert(target_idx != NULL);
 
-        for (unsigned int i = 0; i < source_vec.size(); ++i) {
+        for (unsigned int i = 0; i < source_len; ++i) {
             source_idx[i] = source_vec[i];
         }
 
-        for (unsigned int i = 0; i < target_vec.size(); ++i) {
+        for (unsigned int i = 0; i < target_len; ++i) {
             target_idx[i] = target_vec[i];
         }
     }
@@ -106,8 +109,6 @@ namespace seq2seq {
     // encoder_input : encoder_size * batch,
     // decoder_input, decoder_target : decoder_size * batch
     bool DataReader::get_batch(Blob* encoder_input, Blob* decoder_input, Blob* decoder_target) {
-        cerr << "cursor:" << _prefetch_cursor << " example_size: " << _prefetched_examples.size() << endl;
-
         size_t batch_end = _prefetch_cursor + _batch_size;
         int source_length = _all_data[_prefetched_examples[batch_end - 1]]->source_len;
 
@@ -116,11 +117,9 @@ namespace seq2seq {
             int length = this -> _all_data[_prefetch_cursor + k]->target_len + 1;
             target_length = (length > target_length ? length : target_length);
         }
-
-        float* en_input = encoder_input->host_data;
-        float* de_input = decoder_input->host_data;
-        float* de_target = decoder_target->host_data;
-
+        float* en_input = encoder_input->host_w;
+        float* de_input = decoder_input->host_w;
+        float* de_target = decoder_target->host_w;
         memset(en_input, static_cast<float>(PAD_ID), source_length * _batch_size * sizeof(float));
         memset(de_input, static_cast<float>(PAD_ID), target_length * _batch_size * sizeof(float));
         memset(de_target, static_cast<float>(PAD_ID), target_length * _batch_size * sizeof(float));
@@ -152,16 +151,17 @@ namespace seq2seq {
         decoder_input->set_dim(target_length, _batch_size);
         decoder_target->set_dim(target_length, _batch_size);
 
-        fprintf(stderr, "source length: %d, target_length:%d\n", source_length, target_length);
+        // fprintf(stderr, "source length: %d, target_length:%d\n", source_length, target_length);
 
-        encoder_input->copy_data_to_device();
-        decoder_input->copy_data_to_device();
-        decoder_target->copy_data_to_device();
+        encoder_input->copy_w_to_device();
+        decoder_input->copy_w_to_device();
+        decoder_target->copy_w_to_device();
 
         _prefetch_cursor += _batch_size;
         if (_prefetch_cursor >= _prefetched_examples.size()) {
             prefetch();
         }
+
         if(_cursor >= _all_data.size()){
             return false;
         }
@@ -182,8 +182,8 @@ namespace seq2seq {
             target_length = (length > target_length ? length : target_length);
         }
 
-        float* en_input = encoder_input->host_data;
-        float* de_input = decoder_input->host_data;
+        float* en_input = encoder_input->host_w;
+        float* de_input = decoder_input->host_w;
 
         memset(en_input, static_cast<float>(PAD_ID), source_length * _batch_size * sizeof(float));
         memset(de_input, static_cast<float>(PAD_ID), _batch_size * sizeof(float));
@@ -209,8 +209,8 @@ namespace seq2seq {
 
         fprintf(stderr, "source length: %d, target_length:%d\n", source_length, target_length);
 
-        encoder_input->copy_data_to_device();
-        decoder_input->copy_data_to_device();
+        encoder_input->copy_w_to_device();
+        decoder_input->copy_w_to_device();
 
         _prefetch_cursor += _batch_size;
         if (_prefetch_cursor >= _prefetched_examples.size()) {

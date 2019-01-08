@@ -8,8 +8,8 @@ namespace seq2seq{
 		// prepare weights
 		_w.set_dim(voc_size, emb_size);
 		_w.malloced();
-		xavier_fill(_w.host_data, _w.size(), voc_size, emb_size);
-		_w.copy_data_to_device();
+		xavier_fill(_w.host_w, _w.size(), voc_size, emb_size);
+		_w.copy_w_to_device();
 	}
 
     // begin cuda_kernel
@@ -38,7 +38,7 @@ namespace seq2seq{
     // output: seq_length * batch_size * emb_size
 	void Emb_layer::forward(Blob* input, Blob* output) {
 		int batch = input->dim0;
-		emb_ff(_w.device_data, input->device_data, output->device_data, batch, input->dim1, _emb_size);
+		emb_ff(_w.device_w, input->device_w, output->device_w, batch, input->dim1, _emb_size);
 	}
 
     __global__
@@ -60,8 +60,8 @@ namespace seq2seq{
 
 	void Emb_layer::backward(Blob* input, Blob* output){
 		int seq_length = input->dim0;
-        int batch_size = input->dim1;
-		emb_bp(_w.device_diff, input->device_data, output->device_diff, seq_length, batch_size, _emb_size);
+		int batch_size = input->dim1;
+		emb_bp(_w.device_g, input->device_w, output->device_g, seq_length, batch_size, _emb_size);
 	}
 
     // embedding ff/bp for feeding to rnn compute

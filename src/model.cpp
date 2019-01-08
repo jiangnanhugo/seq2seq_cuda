@@ -3,6 +3,7 @@
 
 namespace seq2seq{
     void Seq2SeqModel::init_train(int encoder_seq_len, int decoder_seq_len, string loss_type, string optimizer_type, float lr){
+        _timestep = 1.;
         // init layers
         encoder_emb_layer.init(_source_voc_size, _emb_size);
         decoder_emb_layer.init(_target_voc_size, _emb_size);
@@ -23,13 +24,8 @@ namespace seq2seq{
             optimizer.init(lr, OPTIMIZER_TYPE::SGDM);
         }else if(optimizer_type.compare("adam")==0){
             optimizer.init(lr, OPTIMIZER_TYPE::ADAM);
-        }else if(optimizer_type.compare("adagrad")==0){
-            optimizer.init(lr, OPTIMIZER_TYPE::ADAGRAD);
-        }else if(optimizer_type.compare("rmsprop")==0){
-            optimizer.init(lr, OPTIMIZER_TYPE::RMSPROP);
-        }else if(optimizer_type.compare("nestrov")==0){
-            optimizer.init(lr, OPTIMIZER_TYPE::NESTROV);
         }
+
 
         // init intermedia blobs
         encoder_emb_blob.set_dim(encoder_seq_len, _batch_size, _emb_size);
@@ -147,8 +143,8 @@ namespace seq2seq{
         float total_loss = 0.0;
         int cnt = 0;
 
-        loss_blob.copy_data_to_host();
-        const float *losses = loss_blob.host_data;
+        loss_blob.copy_w_to_host();
+        const float *losses = loss_blob.host_w;
         for (int i = 0; i < loss_blob.size(); ++i){
             if (fabs(losses[i]) > 1e-12){
                 ++cnt;
@@ -188,12 +184,12 @@ namespace seq2seq{
         softmax_result_blob.set_dim(presoftmax_blob.dim0, presoftmax_blob.dim1);
         softmax_layer.forward(&presoftmax_blob, &softmax_result_blob);
 
-        softmax_result_blob.copy_data_to_host();
-        float* probs = softmax_result_blob.host_data;
+        softmax_result_blob.copy_w_to_host();
+        float* probs = softmax_result_blob.host_w;
         int len =  _batch_size * _target_voc_size;
-        decoder_input->copy_data_to_host();
-        argsort(probs, decoder_input->host_data, _batch_size * _target_voc_size, _batch_size);
-        decoder_input->copy_data_to_device();
+        decoder_input->copy_w_to_host();
+        argsort(probs, decoder_input->host_w, _batch_size * _target_voc_size, _batch_size);
+        decoder_input->copy_w_to_device();
     }
 
     void Seq2SeqModel::backward(Blob *encoder_input, Blob *decoder_input, Blob *decoder_target){
@@ -221,8 +217,8 @@ namespace seq2seq{
         float decoder_rnn_sumsq = 0.0;
 
         cublasErrCheck(cublasSdot(GlobalAssets::instance()->cublasHandle(),
-                    linear_layer.get_w()->size(), linear_layer.get_w()->device_diff, 1,
-                    linear_layer.get_w()->device_diff, 1, &fc_sumsq));
+                    linear_layer.get_w()->size(), linear_layer.get_w()->device_g, 1,
+                    linear_layer.get_w()->device_g, 1, &fc_sumsq));
 
         cublasErrCheck(cublasSdot(GlobalAssets::instance()->cublasHandle(),
                     encoder_rnn_layer.weights_size() / sizeof(float), encoder_rnn_layer.get_dw(), 1,
@@ -241,20 +237,20 @@ namespace seq2seq{
 
         for (size_t i = 0; i < params.size(); ++i){
             float temp_sumsq = 0.0;
-            cublasErrCheck(cublasSdot(GlobalAssets::instance()->cublasHandle(), params[i]->size(), params[i]->device_diff, 1,
-                        params[i]->device_diff, 1, &temp_sumsq));
+            cublasErrCheck(cublasSdot(GlobalAssets::instance()->cublasHandle(), params[i]->size(), params[i]->device_g, 1,
+                        params[i]->device_g, 1, &temp_sumsq));
             decoder_rnn_sumsq += temp_sumsq;
         }
 
         float gnorm = sqrt(fc_sumsq + encoder_rnn_sumsq + decoder_rnn_sumsq);          // global_norm
 
         if (gnorm > max_gradient_norm){
-            fprintf(stderr, "global norm %.6f > thresh %.6f\n", gnorm, max_gradient_norm);
+            // fprintf(stderr, "global norm %.6f > thresh %.6f\n", gnorm, max_gradient_norm);
 
             float scale_factor = max_gradient_norm / gnorm;
 
             cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(),
-                linear_layer.get_w()->size(), &scale_factor, linear_layer.get_w()->device_diff,1));
+                linear_layer.get_w()->size(), &scale_factor, linear_layer.get_w()->device_g,1));
 
             cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(),
                         encoder_rnn_layer.weights_size() / sizeof(float),
@@ -262,13 +258,13 @@ namespace seq2seq{
 
             for (size_t i = 0; i < params.size(); ++i){
                 cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(), params[i]->size(),
-                            &scale_factor, params[i]->device_diff,1));
+                            &scale_factor, params[i]->device_g,1));
             }
 
             // althoug not count in embedding parameters when calculating global norm
             // also needs to scale embedding grads
-            cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(), encoder_emb_blob.size(), &scale_factor, encoder_emb_blob.device_diff, 1));
-            cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(), decoder_emb_blob.size(), &scale_factor, decoder_emb_blob.device_diff, 1));
+            cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(), encoder_emb_blob.size(), &scale_factor, encoder_emb_blob.device_g, 1));
+            cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(), decoder_emb_blob.size(), &scale_factor, decoder_emb_blob.device_g, 1));
         }
     }
 
@@ -282,9 +278,14 @@ namespace seq2seq{
         _maxout_size = hidden_size;
     }
 
-    void Seq2SeqModel::set_lr_decay(float decay){
-        float lr=optimizer.get_lr()*decay;
-        optimizer.set_lr(lr);
+    void Seq2SeqModel::set_lr_decay(float decay) {
+      float lr = optimizer.get_lr() * decay;
+      optimizer.set_lr(lr);
+    }
+
+    void Seq2SeqModel::inc_timestep(){
+        _timestep += 1;
+        optimizer.set_t(_timestep);
     }
 
     // load it into text format
@@ -307,6 +308,7 @@ namespace seq2seq{
         linear_layer.get_w()->loadtxt(dirname + "/fc.weights");
         linear_layer.get_b()->loadtxt(dirname + "/fc.bias");
     }
+
     // save it into text format
     void Seq2SeqModel::save_model(const string &dirname){
         mkdir(dirname.c_str(), 0777);

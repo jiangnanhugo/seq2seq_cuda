@@ -63,14 +63,20 @@ namespace seq2seq{
 
         //start training
         fprintf(stderr, "start training....\n");
+
         for (int epoch = 0; epoch < FLAGS_max_epoch; ++epoch){
-            int iter = 0;
+            int iter=0;
             float sum_loss = 0.0;
             bool ret = false;
+            // std::cerr << "epoch: " << epoch+1 << '\n';
             while((ret = reader.get_batch(&encoder_input, &decoder_input, &decoder_target))!=false){
-                iter++;
+                iter+=1;
+                // std::cerr << "after get_batch" << '\n';
+                model.inc_timestep();
                 sum_loss += model.forward(&encoder_input, &decoder_input, &decoder_target);
+                // std::cerr << "after model.forward" << '\n';
                 model.backward(&encoder_input, &decoder_input, &decoder_target);
+                // std::cerr << "after backeard" << '\n';
                 model.clip_gradients(FLAGS_max_gradient_norm);
                 model.optimize(&encoder_input, &decoder_input);
             }
