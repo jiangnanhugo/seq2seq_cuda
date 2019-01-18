@@ -40,6 +40,7 @@ namespace seq2seq {
 
         vector<int> source_idx, target_idx;
         while (getline(source_f, line)){
+            // line.erase(remove(line.begin(), line.end(), '\r'), line.end());
             int pos = line.find(_pattern);
             string source = line.substr(0, pos);
             string target = line.substr(pos + _pattern.length());
@@ -109,6 +110,7 @@ namespace seq2seq {
     // encoder_input : encoder_size * batch,
     // decoder_input, decoder_target : decoder_size * batch
     bool DataReader::get_batch(Blob* encoder_input, Blob* decoder_input, Blob* decoder_target) {
+        // std::cout << "begin get_batch...." << '\n';
         size_t batch_end = _prefetch_cursor + _batch_size;
         int source_length = _all_data[_prefetched_examples[batch_end - 1]]->source_len;
 
@@ -130,6 +132,7 @@ namespace seq2seq {
 
             // reverse encoder input
             int k= (source_length - pair_t->source_len) * _batch_size;
+            // std::cout << "i = " << i << ", source len = " << pair_t->source_len << '\n';
             for (int j = pair_t->source_len - 1; j >= 0; --j) {
                 en_input[k] = static_cast<float>(pair_t->source_idx[j]);
                 k += _batch_size;
@@ -152,9 +155,11 @@ namespace seq2seq {
         decoder_target->set_dim(target_length, _batch_size);
 
         // fprintf(stderr, "source length: %d, target_length:%d\n", source_length, target_length);
-
+        // std::cerr << "encoder input" << '\n';
         encoder_input->copy_w_to_device();
+        // std::cerr << "decoder input" << '\n';
         decoder_input->copy_w_to_device();
+        // std::cerr << "decoder target" << '\n';
         decoder_target->copy_w_to_device();
 
         _prefetch_cursor += _batch_size;
@@ -207,7 +212,7 @@ namespace seq2seq {
         encoder_input->set_dim(source_length, _batch_size);
         decoder_input->set_dim(target_length, _batch_size);
 
-        fprintf(stderr, "source length: %d, target_length:%d\n", source_length, target_length);
+        // fprintf(stderr, "source length: %d, target_length:%d\n", source_length, target_length);
 
         encoder_input->copy_w_to_device();
         decoder_input->copy_w_to_device();
@@ -234,11 +239,11 @@ namespace seq2seq {
     void DataReader::load_vocab(const string& source_vocab, const string& target_vocab) {
         _source_vocab = source_vocab;
         _target_vocab = target_vocab;
-        this->load_dict(source_vocab, _source_dict, _rev_source_dict_vec);
-        this->load_dict(target_vocab, _target_dict, _rev_target_dict_vec);
+        this->load_dict(source_vocab, _source_dict, _rev_source_dict_vec, 10);
+        this->load_dict(target_vocab, _target_dict, _rev_target_dict_vec, 10);
     }
 
-    void DataReader::load_dict(const string& vocab_file,unordered_map<string, int>& dict, vector<string>& rev_dict) {
+    void DataReader::load_dict(const string& vocab_file, unordered_map<string, int>& dict, vector<string>& rev_dict) {
         ifstream file(vocab_file);
         if (!file.good()) {
             cerr<<"error dict file:"<<vocab_file<<endl;
@@ -263,6 +268,33 @@ namespace seq2seq {
         }
     }
 
+    void DataReader::load_dict(const string& vocab_file, unordered_map<string, int>& dict, vector<string>& rev_dict, int min_freq) {
+        ifstream file(vocab_file);
+        if (!file.good()) {
+            cerr<<"error dict file:"<<vocab_file<<endl;
+            exit(-1);
+        }
+
+        string word;
+        int index = 0, freq;
+        while (file >> word >> freq) {
+            if(freq < min_freq){ break;}
+            if (dict.count(word) > 0) {
+                fprintf(stderr, "duplicated entry:[%s] in file %s\n", word.c_str(), vocab_file.c_str());
+                exit(-1);
+            }
+            dict[word] = index++;
+            rev_dict.push_back(word);
+
+        }
+
+        // check top 4 entries
+        if (rev_dict.size() < 4 || rev_dict[0] != "_PAD"|| rev_dict[1] != "_GO"|| rev_dict[2] != "_EOS"|| rev_dict[3] != "_UNK") {
+            fprintf(stderr, "top four words in dict should be: _PAD, _GO, _EOS, _UNK\n");
+            exit(-1);
+        }
+    }
+
     void DataReader::str_to_idx(const string& str,vector<int>& result, const unordered_map<string,int>& dict) {
         vector<string> tokens;
         split(str, tokens);
@@ -271,8 +303,8 @@ namespace seq2seq {
         for (size_t i = 0; i < tokens.size(); ++i) {
             if (dict.count(tokens[i]) > 0) {
                 result[i] = dict.at(tokens[i]);
-            }else {
-                fprintf(stderr, "[%s] mapped to UNK in [%s]\n", tokens[i].c_str(), str.c_str());
+            }else if(tokens[i].length() >= 1){
+                // fprintf(stderr, "[%s] mapped to UNK in [%s]\n", tokens[i].c_str(), str.c_str());
                 result[i] = UNK_ID;
             }
         }

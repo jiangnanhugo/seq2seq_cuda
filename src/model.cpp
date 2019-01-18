@@ -1,5 +1,6 @@
 #include "model.h"
 #include <sys/stat.h>
+#define DEBUG
 
 namespace seq2seq{
     void Seq2SeqModel::init_train(int encoder_seq_len, int decoder_seq_len, string loss_type, string optimizer_type, float lr){
@@ -12,20 +13,21 @@ namespace seq2seq{
         linear_layer.init(_maxout_size, _target_voc_size);
         softmax_layer.init(CUDNN_SOFTMAX_LOG);
 
-        if(loss_type.compare("cross_entropy")==0){
+        if(loss_type.compare("cross_entropy") == 0){
             loss_layer.init(DataReader::PAD_ID, LOSS_TYPE::CROSS_ENTROPY);
-        }else if(loss_type.compare("focal_loss")==0){
+        }else if(loss_type.compare("focal_loss") == 0){
             loss_layer.init(DataReader::PAD_ID, LOSS_TYPE::FOCAL_LOSS);
         }
 
-        if(optimizer_type.compare("sgd")==0){
+        if(optimizer_type.compare("sgd") == 0){
             optimizer.init(lr, OPTIMIZER_TYPE::SGD);
-        }else if(optimizer_type.compare("sgd_m")==0){
+        }else if(optimizer_type.compare("sgdm") == 0){
             optimizer.init(lr, OPTIMIZER_TYPE::SGDM);
-        }else if(optimizer_type.compare("adam")==0){
+        }else if(optimizer_type.compare("nestrov") == 0){
+            optimizer.init(lr, OPTIMIZER_TYPE::NESTROV);
+        }else if(optimizer_type.compare("adam") == 0){
             optimizer.init(lr, OPTIMIZER_TYPE::ADAM);
         }
-
 
         // init intermedia blobs
         encoder_emb_blob.set_dim(encoder_seq_len, _batch_size, _emb_size);
@@ -52,8 +54,9 @@ namespace seq2seq{
         loss_blob.set_dim(decoder_seq_len * _batch_size, 1);
         loss_blob.malloced();
 
-        _param_blobs.push_back(linear_layer.get_w());
-        _param_blobs.push_back(linear_layer.get_b());
+        _param_blobs.push_back(decoder_emb_layer.get_w());
+        _param_blobs.push_back(encoder_emb_layer.get_w());
+
         _param_blobs.push_back(decoder_rnn_layer.param_w());
         _param_blobs.push_back(decoder_rnn_layer.param_u());
         _param_blobs.push_back(decoder_rnn_layer.param_c());
@@ -63,9 +66,9 @@ namespace seq2seq{
         _param_blobs.push_back(decoder_rnn_layer.param_m_u());
         _param_blobs.push_back(decoder_rnn_layer.param_m_v());
         _param_blobs.push_back(decoder_rnn_layer.param_m_c());
+        _param_blobs.push_back(linear_layer.get_w());
+        _param_blobs.push_back(linear_layer.get_b());
         _param_blobs.push_back(encoder_rnn_layer.get_param());
-        _param_blobs.push_back(decoder_emb_layer.get_w());
-        _param_blobs.push_back(encoder_emb_layer.get_w());
     }
 
     void Seq2SeqModel::init_inference(int encoder_seq_len, int beam_size){
@@ -206,9 +209,18 @@ namespace seq2seq{
     }
 
     void Seq2SeqModel::optimize(Blob *encoder_input, Blob *decoder_input){
+        // std::cerr << "param blob size: " << _param_blobs.size() << '\n';
         for (size_t i = 0; i < _param_blobs.size(); ++i){
+            // std::cerr << "updating: " << i << '\n';
             optimizer.update(_param_blobs[i]);
+// #ifdef DEBUG
+//             _param_blobs[i]->copy_grad_to_host();
+//             Blob * tmp=_param_blobs[i];
+//             std::cerr << "debug matrix shape" << '\n';
+//             fprintf(stderr, "maxtrix at mem:%p, %d, %d, %d\n", tmp->host_w, tmp->dim0, tmp->dim1, tmp->dim2);
+// #endif
         }
+        // std::cerr << "finished grad optimize" << '\n';
     }
 
     void Seq2SeqModel::clip_gradients(float max_gradient_norm){
@@ -312,7 +324,7 @@ namespace seq2seq{
     // save it into text format
     void Seq2SeqModel::save_model(const string &dirname){
         mkdir(dirname.c_str(), 0777);
-        fprintf(stderr, "saving model to %s\n", dirname.c_str());
+        cerr << "saving model to " << dirname << endl;
         encoder_emb_layer.get_w()->savetxt(dirname + "/encoder.emb");
         decoder_emb_layer.get_w()->savetxt(dirname + "/decoder.emb");
 

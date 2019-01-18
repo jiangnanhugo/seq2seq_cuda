@@ -6,12 +6,12 @@
 #include <cmath>
 
 namespace seq2seq{
-    enum OPTIMIZER_TYPE{SGD, SGDM, ADAM};
+    enum OPTIMIZER_TYPE{SGD, SGDM, ADAM, NESTROV};
 
     class Optimzer{
         public:
             inline void init(float lr, OPTIMIZER_TYPE optimizer_type){
-                _lr = -lr;
+                _lr = lr;
                 _optimizer_type = optimizer_type;
             }
             inline void set_lr(float lr){
@@ -28,13 +28,15 @@ namespace seq2seq{
             }
             void update(Blob* param);
             void Sgd(float *w, float* grad, int size);
-            void Sgd_momentum(float *w, float* grad, float* m, int size);
-
+            void Sgd_momentum(float *w, float* g, float* m, int size);
+            void Nestrov(float *w, float *g, float *m, int size);
             void Adam(float *w, float* g, float* m, float* v, int size);
 
             OPTIMIZER_TYPE _optimizer_type;
             float _lr, _t;                      // learning_rate, time_step
     };
+
+    void nestrov_update(float *w, float *g, float *m, int N, const float beta, const float lr);
 
     void adam_update(float* w, float* g, float* m, float * v,
                     int N, float beta1, float beta2, float correction, float eps, const float lr);

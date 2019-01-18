@@ -12,8 +12,7 @@ namespace seq2seq {
         int dim0, dim1, dim2;
         float *host_w, *device_w;      // param
         float *host_g, *device_g;      // gradient
-        float *host_m, *device_m;      // momentum
-        float *host_v, *device_v;      // velocity
+        float *device_m, *device_v;      // momentum, velocity
 
         explicit Blob() : dim0(1), dim1(1), dim2(1) {}
         Blob(int d0, int d1, int d2){ dim0=d0; dim1=d1; dim2=d2;}
@@ -24,7 +23,6 @@ namespace seq2seq {
         void malloced();
         void copy_w_to_device();
         void copy_w_to_host();
-        void copy_grad_to_device();
         void copy_grad_to_host();
         // saving matrix (ignore dim3) into a text file
         void savetxt(const string& filename);

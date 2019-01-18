@@ -74,6 +74,7 @@ namespace seq2seq {
             bool prefetch();
 
             void load_dict(const string& vocab_file, unordered_map<string, int>& dict, vector<string>& rev_dict);
+            void load_dict(const string& vocab_file, unordered_map<string, int>& dict, vector<string>& rev_dict, int min_freq);
             void str_to_idx(const string& str, vector<int>& result, const unordered_map<string, int>& dict);
 
             unordered_map<string, int> _source_dict, _target_dict;

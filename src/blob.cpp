@@ -14,27 +14,23 @@ namespace seq2seq{
         cudaErrCheck(cudaMalloc((void**)&device_g, shape * sizeof(float)));
         cudaErrCheck(cudaMemset(device_g, 0.0, shape * sizeof(float)));
 
-        host_m = (float*)malloc(shape * sizeof(float));
-        assert(host_m != NULL);
-        cudaErrCheck(cudaMalloc((void**)&host_m, shape * sizeof(float)));
-        cudaErrCheck(cudaMemset(host_m, 0.0, shape * sizeof(float)));
+        cudaErrCheck(cudaMalloc((void**)&device_m, shape * sizeof(float)));
+        cudaErrCheck(cudaMemset(device_m, 0.0, shape * sizeof(float)));
 
-        host_v = (float*)malloc(shape * sizeof(float));
-        assert(host_v != NULL);
-        cudaErrCheck(cudaMalloc((void**)&host_v, shape * sizeof(float)));
-        cudaErrCheck(cudaMemset(host_v, 0.0, shape * sizeof(float)));
+        cudaErrCheck(cudaMalloc((void**)&device_v, shape * sizeof(float)));
+        cudaErrCheck(cudaMemset(device_v, 0.0, shape * sizeof(float)));
     }
 
     void Blob::copy_w_to_device() {
+        assert(host_w != NULL);
+        assert(device_w != NULL);
         cudaErrCheck(cudaMemcpy(device_w, host_w, size() * sizeof(float), cudaMemcpyHostToDevice));
     }
 
     void Blob::copy_w_to_host() {
+        assert(host_w != NULL);
+        assert(device_w != NULL);
         cudaErrCheck(cudaMemcpy(host_w, device_w, size() * sizeof(float), cudaMemcpyDeviceToHost));
-    }
-
-    void Blob::copy_grad_to_device() {
-        cudaErrCheck(cudaMemcpy(device_g, host_g, size() * sizeof(float), cudaMemcpyHostToDevice));
     }
 
     void Blob::copy_grad_to_host() {
