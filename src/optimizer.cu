@@ -17,8 +17,9 @@ void Optimzer::update(Blob *param) {
 }
 void Optimzer::Sgd(float *w, float *grad, int size) {
   // w = _lr * grad + w
+  float lr = - _lr;
   cublasErrCheck(cublasSaxpy(GlobalAssets::instance()->cublasHandle(), size,
-                             &_lr, grad, 1, w, 1));
+                             &lr, grad, 1, w, 1));
 }
 
 void Optimzer::Sgd_momentum(float *w, float *g, float *m, int size) {
@@ -31,9 +32,8 @@ void Optimzer::Sgd_momentum(float *w, float *g, float *m, int size) {
                              &_lr, m, 1, w, 1));
 }
 
-__global__
-void nestrov_update_kernel(float *w, float *g, float *m, int N, const float beta,
-                                      const float lr) {
+__global__ void nestrov_update_kernel(float *w, float *g, float *m, int N,
+                                      const float beta, const float lr) {
   CUDA_KERNEL_LOOP(i, N) {
     const float mi = m[i];
     float mi_new = lr * g[i] + beta * m[i];
@@ -42,7 +42,8 @@ void nestrov_update_kernel(float *w, float *g, float *m, int N, const float beta
   }
 }
 
-void nestrov_update(float *w, float *g, float *m, int N, const float beta, const float lr) {
+void nestrov_update(float *w, float *g, float *m, int N, const float beta,
+                    const float lr) {
   const dim3 blockSize(CUDA_NUM_THREADS, 1, 1);
   const dim3 gridSize(GET_BLOCKS(N), 1, 1);
   nestrov_update_kernel<<<gridSize, blockSize>>>(w, g, m, N, beta, lr);
@@ -50,11 +51,11 @@ void nestrov_update(float *w, float *g, float *m, int N, const float beta, const
 
 void Optimzer::Nestrov(float *w, float *g, float *m, int size) {
   const float beta = 0.9;
-  nestrov_update(w, g, m, size, beta, _lr);
+  const float lr = - _lr;
+  nestrov_update(w, g, m, size, beta, lr);
 }
 
-__global__
-void adam_update_kernel(float *w, float *g, float *m, float *v,
+__global__ void adam_update_kernel(float *w, float *g, float *m, float *v,
                                    int N, float beta1, float beta2,
                                    float correction, float eps,
                                    const float lr) {
@@ -62,7 +63,7 @@ void adam_update_kernel(float *w, float *g, float *m, float *v,
     float gi = g[i];
     float mi = m[i] = m[i] * beta1 + gi * (1 - beta1);
     float vi = v[i] = v[i] * beta2 + gi * gi * (1 - beta2);
-    float ng = lr * correction * mi / (sqrtf(vi) + eps);
+    float ng = lr * correction * mi / (sqrt(vi) + eps);
     w[i] += ng;
   }
 }
@@ -80,15 +81,5 @@ void Optimzer::Adam(float *w, float *g, float *m, float *v, int size) {
   const float correction = sqrt(1. - pow(beta2, _t)) / (1. - pow(beta1, _t));
   adam_update(w, g, m, v, size, beta1, beta2, correction, eps, _lr);
 }
-
-//
-// void Optimzer::RMSProp(){
-//
-// }
-// void Optimzer::Adagrad(){
-//
-// }
-//
-//
 
 } // namespace seq2seq

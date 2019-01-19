@@ -209,18 +209,10 @@ namespace seq2seq{
     }
 
     void Seq2SeqModel::optimize(Blob *encoder_input, Blob *decoder_input){
-        // std::cerr << "param blob size: " << _param_blobs.size() << '\n';
         for (size_t i = 0; i < _param_blobs.size(); ++i){
             // std::cerr << "updating: " << i << '\n';
             optimizer.update(_param_blobs[i]);
-// #ifdef DEBUG
-//             _param_blobs[i]->copy_grad_to_host();
-//             Blob * tmp=_param_blobs[i];
-//             std::cerr << "debug matrix shape" << '\n';
-//             fprintf(stderr, "maxtrix at mem:%p, %d, %d, %d\n", tmp->host_w, tmp->dim0, tmp->dim1, tmp->dim2);
-// #endif
         }
-        // std::cerr << "finished grad optimize" << '\n';
     }
 
     void Seq2SeqModel::clip_gradients(float max_gradient_norm){
@@ -324,7 +316,7 @@ namespace seq2seq{
     // save it into text format
     void Seq2SeqModel::save_model(const string &dirname){
         mkdir(dirname.c_str(), 0777);
-        cerr << "saving model to " << dirname << endl;
+        // cerr << "saving model to " << dirname << endl;
         encoder_emb_layer.get_w()->savetxt(dirname + "/encoder.emb");
         decoder_emb_layer.get_w()->savetxt(dirname + "/decoder.emb");
 

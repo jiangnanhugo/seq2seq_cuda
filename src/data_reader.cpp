@@ -101,10 +101,10 @@ namespace seq2seq {
 
     void DataReader::shulffle_and_bucket() {
         _cursor = 0;
-        cerr << "shuffling data....." << endl;
+        // cerr << "shuffling data....." << endl;
         random_shuffle(_data_idx.get(), _data_idx.get() + _all_data.size());        // for shuffling, we just shuffle the index.
         prefetch();
-        cerr << "bucket size:" << _prefetched_examples.size() << endl;
+        // cerr << "bucket size:" << _prefetched_examples.size() << endl;
     }
 
     // encoder_input : encoder_size * batch,

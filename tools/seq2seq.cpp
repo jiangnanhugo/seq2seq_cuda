@@ -77,10 +77,6 @@ namespace seq2seq{
                 model.clip_gradients(FLAGS_max_gradient_norm);
                 model.optimize(&encoder_input, &decoder_input);
                 // std::cout << "finished one batch training" << '\n';
-                if(iter % 1000 == 0){
-                    fprintf(stdout, "epoch=%d, iter=%d, lr=%6f, sum loss=%6f\n", epoch + 1, iter, model.optimizer._lr, sum_loss/1000);
-                    sum_loss = 0;
-                }
             }
             // print loss over epoch
             float loss = sum_loss / iter;
