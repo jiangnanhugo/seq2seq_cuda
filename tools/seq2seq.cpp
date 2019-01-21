@@ -142,6 +142,11 @@ namespace seq2seq{
             std::cerr << "start decoding" << '\n';
             for(int t = 0 ; t < max_decoder_len; ++t){
                 model.step(&decoder_input, t==0? true : false);
+                std::cerr << "t= " << t << " : ";
+                for(int i=0;i<decoder_input.size();i++){
+                    std::cerr << reader._rev_target_dict[decoder_input.host_w[i]] << ' ';
+                }
+                std::cerr << '\n';
             }
         }
     }

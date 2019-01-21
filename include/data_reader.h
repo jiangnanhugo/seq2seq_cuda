@@ -32,8 +32,8 @@ namespace seq2seq {
 
             void load_vocab(const string& source_vocab, const string& target_vocab);
 
-            inline int source_dict_size() {return (int)_rev_source_dict_vec.size();}
-            inline int target_dict_size() {return (int)_rev_target_dict_vec.size();}
+            inline int source_dict_size() {return (int)_rev_source_dict.size();}
+            inline int target_dict_size() {return (int)_rev_target_dict.size();}
             void load_data(const string& source_file,
                     const int batch_size = 32, const unsigned int max_source_len = 50, const unsigned int max_target_len = 50);
 
@@ -53,6 +53,7 @@ namespace seq2seq {
             void set_beam_size(int beam_size){_beam_size=beam_size;}
             void shulffle_and_bucket();
             void display_all_data();
+            vector<string> _rev_source_dict, _rev_target_dict;
 
         private:
             // data structure: _all_data really stores all the data loaded from training files
@@ -80,7 +81,7 @@ namespace seq2seq {
 
             unordered_map<string, int> _source_dict, _target_dict;
 
-            vector<string> _rev_source_dict_vec, _rev_target_dict_vec;
+
 
             string _source_vocab, _target_vocab, _source_file, _target_file;                                                // target training filename
         private:

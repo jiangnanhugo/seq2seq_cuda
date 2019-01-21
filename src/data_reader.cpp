@@ -231,8 +231,8 @@ namespace seq2seq {
     void DataReader::load_vocab(const string& source_vocab, const string& target_vocab) {
         _source_vocab = source_vocab;
         _target_vocab = target_vocab;
-        this->load_dict(source_vocab, _source_dict, _rev_source_dict_vec, 10);
-        this->load_dict(target_vocab, _target_dict, _rev_target_dict_vec, 10);
+        this->load_dict(source_vocab, _source_dict, _rev_source_dict, 10);
+        this->load_dict(target_vocab, _target_dict, _rev_target_dict, 10);
     }
 
     void DataReader::load_dict(const string& vocab_file, unordered_map<string, int>& dict, vector<string>& rev_dict) {
