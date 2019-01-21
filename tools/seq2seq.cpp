@@ -14,10 +14,10 @@ DEFINE_int32(beam_size, 10, "beam search size");
 DEFINE_int32(emb_size, 512, "Embedding size");
 DEFINE_int32(hidden_size, 1024, "Hidden size");
 DEFINE_bool(is_train, true, "train or inference");
-DEFINE_string(train_data_dir, "", "which folder to load training data");
-DEFINE_string(save_model_dir, "", "which folder to save trained model");
-DEFINE_string(load_model_dir, "", "which folder to load model (leave it empty for cold start)");
-DEFINE_int32(checkpoint_per_iter, 200, "How many iters per checkpoint.");
+DEFINE_string(train_data_dir, "./data/train_file", "which folder to load training data");
+DEFINE_string(test_data_dir, "", "which folder to load testing data");
+DEFINE_string(save_model_dir, "./checkpoint/model_dump", "which folder to save trained model");
+DEFINE_string(load_model_dir, "./checkpoint/model_dump", "which folder to load model (leave it empty for cold start)");
 DEFINE_double(max_gradient_norm, 5.0, "Clip gradients to this norm.");
 DEFINE_int32(device, 0, "which device to use");
 DEFINE_int32(max_source_len, 50, "max source language length");
@@ -39,6 +39,7 @@ namespace seq2seq{
         int max_decoder_len = FLAGS_max_target_len + 2;
 
         reader.load_data(FLAGS_train_data_dir + "/train.txt", FLAGS_batch_size, FLAGS_max_source_len, FLAGS_max_target_len);
+        reader.shulffle_and_bucket();
 
         //================initialize model================
         Seq2SeqModel model;
@@ -77,6 +78,14 @@ namespace seq2seq{
                 model.clip_gradients(FLAGS_max_gradient_norm);
                 model.optimize(&encoder_input, &decoder_input);
                 // std::cout << "finished one batch training" << '\n';
+                // if(iter % 1000 == 0){
+                //     fprintf(stdout, "epoch=%d, iter=%d, lr=%6f, sum loss=%6f\n", epoch + 1, iter, model.optimizer._lr, sum_loss/1000);
+                //     sum_loss = 0;
+                //     double used=(clock() - start) / (double)CLOCKS_PER_SEC;
+                //     fprintf(stdout, "time=%d sec\n", int(used));
+                //     start = clock();
+                // }
+
             }
             // print loss over epoch
             float loss = sum_loss / iter;
@@ -102,32 +111,35 @@ namespace seq2seq{
         int beam_size = FLAGS_beam_size;
 
         fprintf(stderr, "source dict size : %d, target dict size: %d\n", reader.source_dict_size(), reader.target_dict_size());
-        reader.load_data(FLAGS_train_data_dir + "/test.txt", batch_size, FLAGS_max_source_len, FLAGS_max_target_len);
+        reader.set_beam_size(beam_size);
+        reader.load_data(FLAGS_test_data_dir + "/test.txt", batch_size, FLAGS_max_source_len, FLAGS_max_target_len);
 
         //================initialize model================
         Seq2SeqModel model;
-
+        // batch_size = beam_size
         model.set_param(reader.source_dict_size(), reader.target_dict_size(), batch_size, FLAGS_emb_size, FLAGS_hidden_size);
-        model.init_inference(max_encoder_len, beam_size);
+        model.init_inference(max_encoder_len, beam_size, FLAGS_is_train);
         fprintf(stderr, "init ended\n");
 
         if (FLAGS_load_model_dir.size() > 0){
             cerr << "loading models from checkpoints: " << FLAGS_load_model_dir << "\n";
             model.load_model(FLAGS_load_model_dir);
         }
+        std::cerr << "model loaded" << '\n';
 
         Blob encoder_input, decoder_input;
 
         encoder_input.set_dim(max_encoder_len, batch_size);
-        decoder_input.set_dim(1, batch_size);
+        decoder_input.set_dim(1, batch_size, beam_size);              // batch_size = beam_size
 
         encoder_input.malloced();
         decoder_input.malloced();
+        std::cerr << "encoder_input decoder_input blob created" << '\n';
 
         bool ret = false;
         while((ret = reader.get_batch(&encoder_input, &decoder_input)) != false){
-            fprintf(stderr, "calc loss....\n");
             model.encode(&encoder_input);
+            std::cerr << "start decoding" << '\n';
             for(int t = 0 ; t < max_decoder_len; ++t){
                 model.step(&decoder_input, t==0? true : false);
             }
@@ -146,21 +158,25 @@ int main(int argc, char **argv){
     google::ParseCommandLineFlags(&argc, &argv, true);
     cudaErrCheck(cudaSetDevice(FLAGS_device));
 
-
-    if (FLAGS_train_data_dir.size() == 0 || FLAGS_save_model_dir.size() == 0){
-        fprintf(stderr, "you must set train_data_dir and save_model_dir\n"
-                "use --help for details\n");
-        exit(-1);
-    }
-
-    struct stat sb;
-    if (stat(FLAGS_save_model_dir.c_str(), &sb) != 0 || !S_ISDIR(sb.st_mode)){
-        fprintf(stderr, "%s is not a valid path\n", FLAGS_save_model_dir.c_str());
-        exit(-1);
-    }
     if( FLAGS_is_train){
+        if (FLAGS_train_data_dir.size() == 0 || FLAGS_save_model_dir.size() == 0){
+            fprintf(stderr, "you must set train_data_dir and save_model_dir\n"
+                    "use --help for details\n");
+            exit(-1);
+        }
+
+        struct stat sb;
+        if (stat(FLAGS_save_model_dir.c_str(), &sb) != 0 || !S_ISDIR(sb.st_mode)){
+            fprintf(stderr, "%s is not a valid path\n", FLAGS_save_model_dir.c_str());
+            exit(-1);
+        }
         seq2seq::run_train();
     }else{
+        if (FLAGS_test_data_dir.size() == 0 || FLAGS_save_model_dir.size() == 0){
+            fprintf(stderr, "you must set test_data_dir and save_model_dir\n"
+                    "use --help for details\n");
+            exit(-1);
+        }
         seq2seq::run_inference();
     }
 

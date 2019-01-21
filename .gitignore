@@ -9,3 +9,4 @@ nohup.out
 .vs/*
 .vscode/*
 obj/*
+*.log

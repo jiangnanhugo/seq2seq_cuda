@@ -1,4 +1,5 @@
 #include "blob.h"
+#include <iostream>
 
 namespace seq2seq{
     void Blob::malloced() {
@@ -54,13 +55,18 @@ namespace seq2seq{
 
     // loading matrix (ignore dim3) into a text file
     void Blob::loadtxt(const string& filename){
-        fprintf(stderr, "loading %s\n", filename.c_str());
         float* data = this->host_w;
+        // std::cerr << "get host_w data" << '\n';
         ifstream infile(filename);
         assert(infile.good());
+        if(!infile.good()){
+            std::cerr << filename <<" cannot open" << '\n';
+            exit(1);
+        }
         string line;
         vector<string> strs;
         int row = dim0, col = dim1 * dim2;
+        // std::cerr << "row: " << row << " col: " << col << '\n';
         for (int i = 0; i < row; ++i) {
             getline(infile, line);
             split(line, strs);

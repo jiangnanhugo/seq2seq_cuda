@@ -50,6 +50,7 @@ namespace seq2seq {
              */
             bool get_batch(Blob* encoder_input,  Blob* decoder_input, Blob* decoder_target);
             bool get_batch(Blob* encoder_input, Blob* decoder_output);
+            void set_beam_size(int beam_size){_beam_size=beam_size;}
             void shulffle_and_bucket();
             void display_all_data();
 
@@ -59,7 +60,7 @@ namespace seq2seq {
             // _data_set size is same as _buckets, each is an array of index of training examples
             // that should stay in that bucket
             vector<shared_ptr<seq_pair> > _all_data;
-            unsigned int _max_source_len, _max_target_len, _batch_size;
+            unsigned int _max_source_len, _max_target_len, _batch_size, _beam_size;
 
             shared_ptr<size_t> _data_idx; // cursor points to _example_idx, all the data index
             size_t _cursor;

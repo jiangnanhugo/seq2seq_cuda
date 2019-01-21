@@ -32,7 +32,6 @@ namespace seq2seq {
         _batch_size = batch_size;
         _max_source_len = max_source_len;
         _max_target_len = max_target_len;
-
         ifstream source_f(source_file);
         assert(source_f.good());
 
@@ -64,7 +63,6 @@ namespace seq2seq {
         for (unsigned int i = 0; i < data_size; ++i) {                          // build index
             _data_idx.get()[i] = i;
         }
-        this->shulffle_and_bucket();
     }
 
     bool DataReader::prefetch() {
@@ -110,7 +108,6 @@ namespace seq2seq {
     // encoder_input : encoder_size * batch,
     // decoder_input, decoder_target : decoder_size * batch
     bool DataReader::get_batch(Blob* encoder_input, Blob* decoder_input, Blob* decoder_target) {
-        // std::cout << "begin get_batch...." << '\n';
         size_t batch_end = _prefetch_cursor + _batch_size;
         int source_length = _all_data[_prefetched_examples[batch_end - 1]]->source_len;
 
@@ -176,26 +173,22 @@ namespace seq2seq {
     // encoder_input : encoder_size * batch,
     // decoder_input, decoder_target : decoder_size * batch
     bool DataReader::get_batch(Blob* encoder_input, Blob* decoder_input){
-        cerr << "cursor:" << _prefetch_cursor << " example_size: " << _prefetched_examples.size() << endl;
-
-        size_t batch_end = _prefetch_cursor + _batch_size;
-        int source_length = _all_data[_prefetched_examples[batch_end - 1]]->source_len;
-
-        int target_length = -1;
-        for(unsigned int k = 0 ; k < _batch_size; k++){
-            int length = this -> _all_data[_prefetch_cursor + k]->target_len + 1;
-            target_length = (length > target_length ? length : target_length);
-        }
+        cerr << "cursor:" << _cursor << " example_size: " << _all_data.size() << endl;
 
         float* en_input = encoder_input->host_w;
         float* de_input = decoder_input->host_w;
 
-        memset(en_input, static_cast<float>(PAD_ID), source_length * _batch_size * sizeof(float));
-        memset(de_input, static_cast<float>(PAD_ID), _batch_size * sizeof(float));
+        int source_length = -1;
+        for(unsigned int k = 0; k < _batch_size; ++k){
+            int length = this->_all_data[_cursor + k]->source_len+1;
+            source_length = (length > source_length? length: source_length);
+        }
 
+        memset(en_input, static_cast<float>(PAD_ID), encoder_input->size() * sizeof(float));
+        memset(de_input, static_cast<float>(PAD_ID), _batch_size * _beam_size * sizeof(float));
         for (unsigned int i = 0; i < _batch_size; ++i) {
-            int sent_idx = _prefetched_examples[_prefetch_cursor + i];
-            const seq_pair* pair_t = _all_data[sent_idx].get();
+            const seq_pair* pair_t = _all_data[_cursor].get();
+            _cursor++;
 
             // reverse encoder input
             int k = (source_length - pair_t->source_len) * _batch_size;
@@ -206,21 +199,20 @@ namespace seq2seq {
 
             // insert GO_ID into decoder begining
             k = i;
-            de_input[k] = static_cast<float>(GO_ID);
+            for(int j = 0 ; j < _beam_size; ++j){
+                de_input[k] = static_cast<float>(GO_ID);
+                k += _batch_size;
+            }
         }
 
         encoder_input->set_dim(source_length, _batch_size);
-        decoder_input->set_dim(target_length, _batch_size);
+        decoder_input->set_dim(1, _batch_size, _beam_size);
 
-        // fprintf(stderr, "source length: %d, target_length:%d\n", source_length, target_length);
+        fprintf(stderr, "source len: %d, batch_size: %d, beam_size: %d\n", source_length, _batch_size, _beam_size);
 
         encoder_input->copy_w_to_device();
         decoder_input->copy_w_to_device();
 
-        _prefetch_cursor += _batch_size;
-        if (_prefetch_cursor >= _prefetched_examples.size()) {
-            prefetch();
-        }
         if(_cursor >= _all_data.size()){
             return false;
         }

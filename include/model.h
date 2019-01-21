@@ -8,7 +8,7 @@
 namespace seq2seq{
     struct Seq2SeqModel{
         void init_train(int encoder_seq_len, int decoder_seq_len, string loss_type, string optimizer_type, float lr);
-        void init_inference(int encoder_seq_len, int beam_size);
+        void init_inference(int encoder_seq_len, int beam_size, bool is_train);
         float forward(Blob* encoder_input, Blob* decoder_input, Blob* decoder_target);
         void backward(Blob* encoder_input, Blob* decoder_input, Blob* decoder_target);
         void encode(Blob* encoder_input);

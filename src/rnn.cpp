@@ -308,7 +308,6 @@ void RNN_layer::forward(Blob *input, Blob *output, Blob *initial_hidden,
   assert(seq_length <= max_allowd_seq_length); // length exceeded
   assert(batch == _batch_size); // batch_size not the same as stated in init
   assert(input_size == _input_size); // input_size not the same as stated in init
-
   if (_is_train) {
     cudnnErrCheck(cudnnRNNForwardTraining(
         GlobalAssets::instance()->cudnnHandle(), _rnn_desc, seq_length, _x_desc,

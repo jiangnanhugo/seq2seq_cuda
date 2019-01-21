@@ -71,11 +71,11 @@ namespace seq2seq{
         _param_blobs.push_back(encoder_rnn_layer.get_param());
     }
 
-    void Seq2SeqModel::init_inference(int encoder_seq_len, int beam_size){
+    void Seq2SeqModel::init_inference(int encoder_seq_len, int beam_size, bool is_train){
         // init layers
         encoder_emb_layer.init(_source_voc_size, _emb_size);
         decoder_emb_layer.init(_target_voc_size, _emb_size);
-        encoder_rnn_layer.init(_batch_size, _hidden_size, _emb_size, true, 1, true, CUDNN_GRU, 0.0);
+        encoder_rnn_layer.init(_batch_size, _hidden_size, _emb_size, is_train, 1, true, CUDNN_GRU, 0.0);
         decoder_rnn_layer.init(_batch_size, _hidden_size, _emb_size, _alignment_size, _maxout_size, encoder_seq_len, 1);
         linear_layer.init(_maxout_size, _target_voc_size);
         softmax_layer.init(CUDNN_SOFTMAX_LOG);
@@ -166,9 +166,11 @@ namespace seq2seq{
     }
 
     void Seq2SeqModel::step(Blob* decoder_input, bool is_init){
+        std::cerr << "inside step functions" << '\n';
         // seq_len * batch * emb_size
         decoder_emb_blob.set_dim(1, decoder_input->dim1, _emb_size);
         decoder_emb_layer.forward(decoder_input, &decoder_emb_blob);
+        std::cerr << "decoder embedding finished" << '\n';
 
         // seq_len(=1) * batch * hidden_size
         decoder_rnn_blob.set_dim(1, decoder_emb_blob.dim1, _hidden_size);
@@ -210,7 +212,6 @@ namespace seq2seq{
 
     void Seq2SeqModel::optimize(Blob *encoder_input, Blob *decoder_input){
         for (size_t i = 0; i < _param_blobs.size(); ++i){
-            // std::cerr << "updating: " << i << '\n';
             optimizer.update(_param_blobs[i]);
         }
     }
@@ -250,7 +251,6 @@ namespace seq2seq{
 
         if (gnorm > max_gradient_norm){
             // fprintf(stderr, "global norm %.6f > thresh %.6f\n", gnorm, max_gradient_norm);
-
             float scale_factor = max_gradient_norm / gnorm;
 
             cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(),
