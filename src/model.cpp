@@ -165,7 +165,7 @@ namespace seq2seq{
         return avg_loss;
     }
 
-    void Seq2SeqModel::step(Blob* decoder_input, bool is_init){
+    void Seq2SeqModel::step(Blob* decoder_input, bool is_init, int beam_size){
         std::cerr << "inside step functions" << '\n';
         // seq_len * batch * emb_size
         decoder_emb_blob.set_dim(1, decoder_input->dim1, _emb_size);
@@ -191,9 +191,9 @@ namespace seq2seq{
 
         softmax_result_blob.copy_w_to_host();
         float* probs = softmax_result_blob.host_w;
-        int len =  _batch_size * _target_voc_size;
         decoder_input->copy_w_to_host();
-        argsort(probs, decoder_input->host_w, _batch_size * _target_voc_size, _batch_size);
+        std::cerr << "_batch_size: " << _batch_size << " target vocab size:" << _target_voc_size << '\n';
+        argsort(probs, decoder_input->host_w, beam_size * _target_voc_size, beam_size);
         decoder_input->copy_w_to_device();
     }
 

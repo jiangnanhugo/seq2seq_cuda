@@ -116,7 +116,6 @@ namespace seq2seq{
 
         //================initialize model================
         Seq2SeqModel model;
-        // batch_size = beam_size
         model.set_param(reader.source_dict_size(), reader.target_dict_size(), batch_size, FLAGS_emb_size, FLAGS_hidden_size);
         model.init_inference(max_encoder_len, beam_size, FLAGS_is_train);
         fprintf(stderr, "init ended\n");
@@ -130,7 +129,7 @@ namespace seq2seq{
         Blob encoder_input, decoder_input;
 
         encoder_input.set_dim(max_encoder_len, batch_size);
-        decoder_input.set_dim(1, batch_size, beam_size);              // batch_size = beam_size
+        decoder_input.set_dim(1, batch_size, beam_size);
 
         encoder_input.malloced();
         decoder_input.malloced();
@@ -141,9 +140,9 @@ namespace seq2seq{
             model.encode(&encoder_input);
             std::cerr << "start decoding" << '\n';
             for(int t = 0 ; t < max_decoder_len; ++t){
-                model.step(&decoder_input, t==0? true : false);
+                model.step(&decoder_input, t==0? true : false, beam_size);
                 std::cerr << "t= " << t << " : ";
-                for(int i=0;i<decoder_input.size();i++){
+                for(int i = 0; i < decoder_input.size() ; ++i){
                     std::cerr << reader._rev_target_dict[decoder_input.host_w[i]] << ' ';
                 }
                 std::cerr << '\n';

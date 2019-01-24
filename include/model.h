@@ -12,7 +12,7 @@ namespace seq2seq{
         float forward(Blob* encoder_input, Blob* decoder_input, Blob* decoder_target);
         void backward(Blob* encoder_input, Blob* decoder_input, Blob* decoder_target);
         void encode(Blob* encoder_input);
-        void step(Blob* decoder_input, bool is_init);
+        void step(Blob* decoder_input, bool is_init, int beam_size);
         void clip_gradients(float max_gradient_norm);
         void optimize(Blob* encoder_input, Blob* decoder_input);
         void set_lr_decay(float decay);

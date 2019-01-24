@@ -196,7 +196,6 @@ namespace seq2seq {
                 en_input[k] = static_cast<float>(pair_t->source_idx[j]);
                 k += _batch_size;
             }
-
             // insert GO_ID into decoder begining
             k = i;
             for(int j = 0 ; j < _beam_size; ++j){
