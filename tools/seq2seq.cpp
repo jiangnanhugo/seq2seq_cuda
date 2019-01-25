@@ -68,7 +68,7 @@ namespace seq2seq{
             clock_t start = clock();
             // std::cerr << "epoch: " << epoch+1 << '\n';
             while((ret = reader.get_batch(&encoder_input, &decoder_input, &decoder_target))!=false){
-                iter+=1;
+                iter += 1;
                 // std::cerr << "after get_batch" << '\n';
                 model.inc_timestep();
                 sum_loss += model.forward(&encoder_input, &decoder_input, &decoder_target);
@@ -138,13 +138,17 @@ namespace seq2seq{
         bool ret = false;
         while((ret = reader.get_batch(&encoder_input, &decoder_input)) != false){
             model.encode(&encoder_input);
+            beam_entry sentences[max_decoder_len];
             std::cerr << "start decoding" << '\n';
             for(int t = 0 ; t < max_decoder_len; ++t){
+                beam_entry one_entry = beam_entry(beam_size);
                 model.step(&decoder_input, t==0? true : false, beam_size);
-                std::cerr << "t= " << t << " : ";
+                std::cerr << "t = " << t << " : ";
                 for(int i = 0; i < decoder_input.size() ; ++i){
+                    one_entry.word_dix = decoder_input.host_w[i];
                     std::cerr << reader._rev_target_dict[decoder_input.host_w[i]] << ' ';
                 }
+                sentences[i] = one_entry;
                 std::cerr << '\n';
             }
         }

@@ -28,7 +28,7 @@ namespace seq2seq{
     }
 
     void argsort(float* data, float* indices, int len, int beam_size){
-        std::iota(indices, indices + beam_size, 0);
+        std::iota(indices, indices + len, 0);
         std::cerr << "len: "<< len << " beam_size:"<< beam_size << '\n';
         insert_sort(data, indices, len, beam_size);
     }
