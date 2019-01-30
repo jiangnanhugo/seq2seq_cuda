@@ -67,26 +67,22 @@ namespace seq2seq {
             DISALLOW_COPY_AND_ASSIGN(GlobalAssets)
     };
 
-    void cpu_gemm(const CBLAS_TRANSPOSE TransA,
-            const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,
-            const float alpha, const float* A, const float* B, const float beta,
-            float* C);
+    void cpu_gemm(const CBLAS_TRANSPOSE TransA, const CBLAS_TRANSPOSE TransB,
+            const int M, const int N, const int K, const float alpha, const float* A, const float* B, const float beta, float* C);
 
-    void gpu_gemm(const CBLAS_TRANSPOSE TransA,
-            const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,
-            const float alpha, const float* A, const float* B, const float beta,
-            float* C);
+    void gpu_gemm(const CBLAS_TRANSPOSE TransA, const CBLAS_TRANSPOSE TransB,
+            const int M, const int N, const int K, const float alpha, const float* A, const float* B, const float beta, float* C);
 
     void gpu_gemv(const CBLAS_TRANSPOSE TransA, const int M,
             const int N, const float alpha, const float* A, const float* x,
             const float beta, float* y);
 
     float uniform_rand(float min, float max);
-    void xavier_fill(float* data, int count, int in, int out);
-    void constant_fill(float* data, int count, float val);
+    void xavier_fill(float* data, int size, int in, int out);
+    void constant_fill(float* data, int size, float val);
 
-    void insert_sort(float *arr, float *idx, int n, int beam_size);
-    void argsort(float* data, float* indices, int len, int beam_size);
+    void insert_sort(float *arr, int *idx, int n, int beam_size);
+    void argsort(float* data, int* parent_indices, int* word_indices, int vocab_size, int beam_size);
 
     template <typename Dtype>
         void display_matrix(const Dtype* data, int row, int col, int dim2 = -1);

@@ -14,22 +14,19 @@ namespace seq2seq{
 
     // begin cuda_kernel
     __global__
-    void emb_ff_kernel(const float* w, const float* input, float* output, int batch_size, int seq_length, int emb_size){
-        int total = seq_length * batch_size * emb_size;
-        CUDA_KERNEL_LOOP(i, total) {
+    void emb_ff_kernel(const float* w, const float* input, float* output, int N, int emb_size){
+        CUDA_KERNEL_LOOP(i, N) {
             int row = i / emb_size;
-            int column = i % emb_size;
-
+            int col = i % emb_size;
             const float* emb_t = w + static_cast<unsigned int>(input[row]) * emb_size;
-            output[i] = emb_t[column];
+            output[i] = emb_t[col];
         }
     }
 
-    void emb_ff(const float* w, const float* input, float* output, int batch_size, int seq_length, int emb_size){
-        int total = seq_length * batch_size * emb_size;
+    void emb_ff(const float* w, const float* input, float* output, int N, int emb_size){
         const dim3 blockSize(CUDA_NUM_THREADS, 1, 1);
-        const dim3 gridSize(GET_BLOCKS(total), 1, 1);
-        emb_ff_kernel<<< gridSize, blockSize >>> (w, input, output, batch_size, seq_length, emb_size);
+        const dim3 gridSize(GET_BLOCKS(N), 1, 1);
+        emb_ff_kernel<<< gridSize, blockSize >>> (w, input, output, N, emb_size);
     }
     // end cuda_kernel
 
@@ -37,33 +34,33 @@ namespace seq2seq{
     // weights: dim0 * dim1 = voc_size * emb_size
     // output: seq_length * batch_size * emb_size
 	void Emb_layer::forward(Blob* input, Blob* output) {
-		int batch = input->dim0;
-		emb_ff(_w.device_w, input->device_w, output->device_w, batch, input->dim1, _emb_size);
+		int batch_size = input->dim0;
+        int seq_len = input->dim1;
+        int N = seq_len * batch_size * _emb_size;
+        assert(output->size()==N);
+		emb_ff(_w.device_w, input->device_w, output->device_w, N, _emb_size);
 	}
 
     __global__
-    void emb_bp_kernel(float* w, const float* input, const float* grad_output, int seq_length, int batch_size, int emb_size) {
-        int total = seq_length * batch_size * emb_size;
-        CUDA_KERNEL_LOOP(i, total) {
+    void emb_bp_kernel(float* w, const float* input, const float* grad_output, int N, int emb_size) {
+        CUDA_KERNEL_LOOP(i, N) {
             int row = i / emb_size;
-            int column = i % emb_size;
+            int col = i % emb_size;
 
             float* emb_t = w + static_cast<unsigned int>(input[row]) * emb_size;
-            atomicAdd(emb_t + column, grad_output[i]);
+            atomicAdd(emb_t + col, grad_output[i]);
         }
     }
 
-    void emb_bp(float* w, const float* input, const float* grad_output, int seq_length, int batch_size, int emb_size) {
-        int total = seq_length * batch_size * emb_size;
-        emb_bp_kernel<<<GET_BLOCKS(total), CUDA_NUM_THREADS>>>(w, input, grad_output, seq_length, batch_size, emb_size);
+    void emb_bp(float* w, const float* input, const float* grad_output, int N, int emb_size) {
+        emb_bp_kernel<<<GET_BLOCKS(N), CUDA_NUM_THREADS>>>(w, input, grad_output, N, emb_size);
     }
 
 	void Emb_layer::backward(Blob* input, Blob* output){
-		int seq_length = input->dim0;
+		int seq_len = input->dim0;
 		int batch_size = input->dim1;
-		emb_bp(_w.device_g, input->device_w, output->device_g, seq_length, batch_size, _emb_size);
+        int N = seq_len * batch_size * _emb_size;
+        assert(output->size()==N);
+		emb_bp(_w.device_g, input->device_w, output->device_g, N, _emb_size);
 	}
-
-    // embedding ff/bp for feeding to rnn compute
-    // ff result shape is seq_length * batch * emb_size
 }

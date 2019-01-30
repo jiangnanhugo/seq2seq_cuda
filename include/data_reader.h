@@ -81,8 +81,6 @@ namespace seq2seq {
 
             unordered_map<string, int> _source_dict, _target_dict;
 
-
-
             string _source_vocab, _target_vocab, _source_file, _target_file;                                                // target training filename
         private:
             DISALLOW_COPY_AND_ASSIGN(DataReader);

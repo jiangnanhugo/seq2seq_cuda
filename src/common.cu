@@ -13,7 +13,8 @@ namespace seq2seq{
 		return g_asset.get();
 	}
 
-    void insert_sort(float *arr, float *idx, int n, int beam_size){
+    void insert_sort(float *arr, int *idx, int vocab_size, int beam_size){
+        int n = vocab_size * beam_size;
         for (int i = 1; i < n; i++) {
             int key = arr[i];
             int j = i - 1;
@@ -27,10 +28,14 @@ namespace seq2seq{
         }
     }
 
-    void argsort(float* data, float* indices, int len, int beam_size){
-        std::iota(indices, indices + len, 0);
-        std::cerr << "len: "<< len << " beam_size:"<< beam_size << '\n';
-        insert_sort(data, indices, len, beam_size);
+    void argsort(float* data, int* parent_indices, int* word_indices, int vocab_size, int beam_size){
+        int *indices = (int*) malloc(vocab_size * beam_size * sizeof(int));
+        std::iota(indices, indices + vocab_size * beam_size, 0);
+        insert_sort(data, indices, vocab_size, beam_size);
+        for(int i = 0 ; i < beam_size ; ++i){
+            parent_indices[i] = indices[i] / vocab_size;
+            word_indices[i] = indices[i] % vocab_size;
+        }
     }
 
 	void cpu_gemm(const CBLAS_TRANSPOSE TransA,
@@ -39,8 +44,7 @@ namespace seq2seq{
 			float* C){
 		int lda = (TransA == CblasNoTrans) ? K : M;
 		int ldb = (TransB == CblasNoTrans) ? N : K;
-		cblas_sgemm(CblasRowMajor, TransA, TransB, M, N, K, alpha, A, lda, B,
-				ldb, beta, C, N);
+		cblas_sgemm(CblasRowMajor, TransA, TransB, M, N, K, alpha, A, lda, B, ldb, beta, C, N);
 	}
 
 	void gpu_gemm(const CBLAS_TRANSPOSE TransA,
@@ -54,8 +58,7 @@ namespace seq2seq{
 		cublasOperation_t cuTransB = (TransB == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
 
 		//    fprintf(stderr, "n=%d m=%d k=%d lda=%d ldb=%d\n", N, M, K, lda, ldb);
-		cublasErrCheck(cublasSgemm(GlobalAssets::instance()->cublasHandle(),
-                                   cuTransB, cuTransA,
+		cublasErrCheck(cublasSgemm(GlobalAssets::instance()->cublasHandle(), cuTransB, cuTransA,
 					               N, M, K, &alpha, B, ldb, A, lda, &beta, C, N));
 	}
 
@@ -63,25 +66,22 @@ namespace seq2seq{
                   const int M, const int N,
                   const float alpha, const float* A, const float* x, const float beta, float* y) {
 		cublasOperation_t cuTransA = (TransA == CblasNoTrans) ? CUBLAS_OP_T : CUBLAS_OP_N;
-		cublasErrCheck(cublasSgemv(GlobalAssets::instance()->cublasHandle(),
-                                   cuTransA, N, M, &alpha, A, N, x, 1, &beta, y, 1));
+		cublasErrCheck(cublasSgemv(GlobalAssets::instance()->cublasHandle(), cuTransA, N, M, &alpha, A, N, x, 1, &beta, y, 1));
 	}
 
 	float uniform_rand(float min, float max) {
 		return ((float)rand() / (RAND_MAX)) * (max - min) + min;
 	}
 
-	void xavier_fill(float* data, int count, int in, int out) {
+	void xavier_fill(float* data, int size, int in, int out) {
 		float scale = sqrt(float(6.0) / (in + out));
-		for (int i = 0; i < count; ++i) {
+		for (int i = 0; i < size; ++i) {
 			data[i] = uniform_rand(-scale, scale);
 		}
 	}
 
-	void constant_fill(float* data, int count, float val) {
-		for (int i = 0; i < count; ++i) {
-			data[i] = val;
-		}
+	void constant_fill(float* data, int size, float val) {
+		for (int i = 0; i < size; ++i) {data[i] = val;}
 	}
 
 	void display_matrix_helper(const float* data, int row, int col) {
@@ -131,7 +131,7 @@ namespace seq2seq{
 		void display_matrix<int>(const int* data, int row, int col, int dim2/* = -1*/);
 
 	void split(const std::string& main_str,std::vector<std::string>& str_list,
-			const std::string& delimiter /* = space_string */) {
+			const std::string& delimiter /* = space */) {
 		size_t pre_pos = 0, position = 0;
 		std::string tmp_str;
 

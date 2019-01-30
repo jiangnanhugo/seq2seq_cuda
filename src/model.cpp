@@ -165,12 +165,10 @@ namespace seq2seq{
         return avg_loss;
     }
 
-    void Seq2SeqModel::step(Blob* decoder_input, bool is_init, int beam_size){
-        std::cerr << "inside step functions" << '\n';
+    void Seq2SeqModel::step(Blob* decoder_input, int* parent_indices, int* word_indices, int beam_size, bool is_init){
         // seq_len * batch * emb_size
         decoder_emb_blob.set_dim(1, decoder_input->dim1, _emb_size);
         decoder_emb_layer.forward(decoder_input, &decoder_emb_blob);
-        std::cerr << "decoder embedding finished" << '\n';
 
         // seq_len(=1) * batch * hidden_size
         decoder_rnn_blob.set_dim(1, decoder_emb_blob.dim1, _hidden_size);
@@ -191,10 +189,7 @@ namespace seq2seq{
 
         softmax_result_blob.copy_w_to_host();
         float* probs = softmax_result_blob.host_w;
-        decoder_input->copy_w_to_host();
-        std::cerr << "_batch_size: " << _batch_size << " target vocab size:" << _target_voc_size << '\n';
-        argsort(probs, decoder_input->host_w, beam_size * _target_voc_size, beam_size);
-        decoder_input->copy_w_to_device();
+        argsort(probs, parent_indices, word_indices, _target_voc_size, beam_size);
     }
 
     void Seq2SeqModel::backward(Blob *encoder_input, Blob *decoder_input, Blob *decoder_target){
@@ -222,12 +217,12 @@ namespace seq2seq{
         float decoder_rnn_sumsq = 0.0;
 
         cublasErrCheck(cublasSdot(GlobalAssets::instance()->cublasHandle(),
-                    linear_layer.get_w()->size(), linear_layer.get_w()->device_g, 1,
-                    linear_layer.get_w()->device_g, 1, &fc_sumsq));
+        linear_layer.get_w()->size(), linear_layer.get_w()->device_g, 1,
+        linear_layer.get_w()->device_g, 1, &fc_sumsq));
 
         cublasErrCheck(cublasSdot(GlobalAssets::instance()->cublasHandle(),
-                    encoder_rnn_layer.weights_size() / sizeof(float), encoder_rnn_layer.get_dw(), 1,
-                    encoder_rnn_layer.get_dw(), 1, &encoder_rnn_sumsq));
+        encoder_rnn_layer.weights_size() / sizeof(float), encoder_rnn_layer.get_dw(), 1,
+        encoder_rnn_layer.get_dw(), 1, &encoder_rnn_sumsq));
 
         std::vector<Blob *> params;
         params.push_back(decoder_rnn_layer.param_w());
@@ -243,7 +238,7 @@ namespace seq2seq{
         for (size_t i = 0; i < params.size(); ++i){
             float temp_sumsq = 0.0;
             cublasErrCheck(cublasSdot(GlobalAssets::instance()->cublasHandle(), params[i]->size(), params[i]->device_g, 1,
-                        params[i]->device_g, 1, &temp_sumsq));
+            params[i]->device_g, 1, &temp_sumsq));
             decoder_rnn_sumsq += temp_sumsq;
         }
 
@@ -254,15 +249,15 @@ namespace seq2seq{
             float scale_factor = max_gradient_norm / gnorm;
 
             cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(),
-                linear_layer.get_w()->size(), &scale_factor, linear_layer.get_w()->device_g,1));
+            linear_layer.get_w()->size(), &scale_factor, linear_layer.get_w()->device_g,1));
 
             cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(),
-                        encoder_rnn_layer.weights_size() / sizeof(float),
-                        &scale_factor, encoder_rnn_layer.get_dw(), 1));
+            encoder_rnn_layer.weights_size() / sizeof(float),
+            &scale_factor, encoder_rnn_layer.get_dw(), 1));
 
             for (size_t i = 0; i < params.size(); ++i){
                 cublasErrCheck(cublasSscal(GlobalAssets::instance()->cublasHandle(), params[i]->size(),
-                            &scale_factor, params[i]->device_g,1));
+                &scale_factor, params[i]->device_g,1));
             }
 
             // althoug not count in embedding parameters when calculating global norm
@@ -283,8 +278,8 @@ namespace seq2seq{
     }
 
     void Seq2SeqModel::set_lr_decay(float decay) {
-      float lr = optimizer.get_lr() * decay;
-      optimizer.set_lr(lr);
+        float lr = optimizer.get_lr() * decay;
+        optimizer.set_lr(lr);
     }
 
     void Seq2SeqModel::inc_timestep(){

@@ -7,7 +7,7 @@ namespace seq2seq{
     class RNN_layer {
         public:
             void init(int batch_size, int hidden_size, int input_size,
-                    bool is_training = true, int num_layers = 1, bool bidirectional = false,
+                    bool is_train = true, int num_layers = 1, bool bidirectional = false,
                     cudnnRNNMode_t mode = CUDNN_GRU, float dropout = 0.0);
 
             /*

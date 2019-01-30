@@ -18,9 +18,7 @@ namespace seq2seq{
                 _pad_id = pad_id;
                 _error_type =type;
             }
-            // input shape:  num_labels * batch
-            // labels shape: batch * 1
-            // output shape: batch * 1 (loss values)
+            // input:  num_labels * batch, labels: batch * 1, output: batch * 1 (loss values)
             void forward(Blob* input, Blob* labels, Blob* output);
             void backward(Blob* input, Blob* labels, Blob* output, float loss_factor);
         private:

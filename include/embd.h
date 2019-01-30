@@ -16,7 +16,7 @@ namespace seq2seq{
             Blob _w;
     };
 
-    void emb_ff(const float* w, const float* input, float* output, int seq_length, int batch_size, int emb_size);
-    void emb_bp(float* w, const float* input, const float* grad_output, int seq_length, int batch_size, int emb_size);
+    void emb_ff(const float* w, const float* input, float* output, int N, int emb_size);
+    void emb_bp(float* w, const float* input, const float* grad_output, int N, int emb_size);
 }
 #endif

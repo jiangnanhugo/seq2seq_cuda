@@ -56,17 +56,12 @@ namespace seq2seq{
     // loading matrix (ignore dim3) into a text file
     void Blob::loadtxt(const string& filename){
         float* data = this->host_w;
-        // std::cerr << "get host_w data" << '\n';
         ifstream infile(filename);
         assert(infile.good());
-        if(!infile.good()){
-            std::cerr << filename <<" cannot open" << '\n';
-            exit(1);
-        }
+
         string line;
         vector<string> strs;
         int row = dim0, col = dim1 * dim2;
-        // std::cerr << "row: " << row << " col: " << col << '\n';
         for (int i = 0; i < row; ++i) {
             getline(infile, line);
             split(line, strs);
@@ -88,6 +83,20 @@ namespace seq2seq{
         this->copy_grad_to_host();
         fprintf(stderr, "%s in shape (%d %d %d)\n", info.c_str(), dim0, dim1, dim2);
         display_matrix(this->host_g, dim0, dim1, dim2);
+    }// end Blob
+
+    void beam_entry::init(){
+        for(int i=0; i<_beam_size;i++){ parent_indices[i]=i;}
+        for(int i=0; i<_beam_size ;i++){ word_indices[i]=i;}
     }
-    // end Blob
+
+    void inverse_trace(beam_entry* x, int length) {
+        for (int i = length - 1; i > 0; i--) {
+            beam_entry xi = x[i];
+            for (int j = 0; j < xi._beam_size; j++) {
+                int parent_idx = xi.parent_indices[j];
+                x[i - 1].word_indices[j] = x[i - 1].word_indices[parent_idx];
+            }
+        }
+    }
 } // end seq2seq

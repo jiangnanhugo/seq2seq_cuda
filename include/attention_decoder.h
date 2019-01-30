@@ -7,9 +7,8 @@ namespace seq2seq {
     class AttentionDecoder {
         public:
             void init(int batch_size, int hidden_size,  int input_size,
-                    int alignment_model_size = -1, int maxout_size = -1,
+                    int alignment_size = -1, int maxout_size = -1,
                     int max_source_seq_len = 128, int max_target_seq_len = 128);
-
             /*
              * @brief forward pass of attention decoder (assuming a bi-directional encoder)
              *

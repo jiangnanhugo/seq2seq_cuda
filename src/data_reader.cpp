@@ -19,13 +19,8 @@ namespace seq2seq {
         target_idx = new int[target_len];
         assert(target_idx != NULL);
 
-        for (unsigned int i = 0; i < source_len; ++i) {
-            source_idx[i] = source_vec[i];
-        }
-
-        for (unsigned int i = 0; i < target_len; ++i) {
-            target_idx[i] = target_vec[i];
-        }
+        for (int i = 0; i < source_len; ++i) {source_idx[i] = source_vec[i];}
+        for (int i = 0; i < target_len; ++i) {target_idx[i] = target_vec[i];}
     }
 
     void DataReader::load_data(const string& source_file, const int batch_size, const unsigned int max_source_len, const unsigned int max_target_len){
@@ -36,7 +31,6 @@ namespace seq2seq {
         assert(source_f.good());
 
         string line;
-
         vector<int> source_idx, target_idx;
         while (getline(source_f, line)){
             // line.erase(remove(line.begin(), line.end(), '\r'), line.end());
@@ -47,9 +41,8 @@ namespace seq2seq {
             this->str_to_idx(source, source_idx, _source_dict);
             this->str_to_idx(target, target_idx, _target_dict);
 
-            if (source_idx.size() > _max_source_len || target_idx.size() > _max_target_len){
-                continue;
-            }
+            if (source_idx.size() > _max_source_len || target_idx.size() > _max_target_len) continue;
+
 
             target_idx.push_back(EOS_ID);                                       // insert a eos into target_ids
             _all_data.push_back(shared_ptr<seq_pair>(new seq_pair(source_idx, target_idx)));
@@ -99,10 +92,8 @@ namespace seq2seq {
 
     void DataReader::shulffle_and_bucket() {
         _cursor = 0;
-        // cerr << "shuffling data....." << endl;
-        random_shuffle(_data_idx.get(), _data_idx.get() + _all_data.size());        // for shuffling, we just shuffle the index.
+        random_shuffle(_data_idx.get(), _data_idx.get() + _all_data.size());        // shuffle the index.
         prefetch();
-        // cerr << "bucket size:" << _prefetched_examples.size() << endl;
     }
 
     // encoder_input : encoder_size * batch,
@@ -152,11 +143,8 @@ namespace seq2seq {
         decoder_target->set_dim(target_length, _batch_size);
 
         // fprintf(stderr, "source length: %d, target_length:%d\n", source_length, target_length);
-        // std::cerr << "encoder input" << '\n';
         encoder_input->copy_w_to_device();
-        // std::cerr << "decoder input" << '\n';
         decoder_input->copy_w_to_device();
-        // std::cerr << "decoder target" << '\n';
         decoder_target->copy_w_to_device();
 
         _prefetch_cursor += _batch_size;
@@ -236,10 +224,7 @@ namespace seq2seq {
 
     void DataReader::load_dict(const string& vocab_file, unordered_map<string, int>& dict, vector<string>& rev_dict) {
         ifstream file(vocab_file);
-        if (!file.good()) {
-            cerr<<"error dict file:"<<vocab_file<<endl;
-            exit(-1);
-        }
+        assert(file.good());
 
         string line;
         int index = 0;
@@ -261,10 +246,7 @@ namespace seq2seq {
 
     void DataReader::load_dict(const string& vocab_file, unordered_map<string, int>& dict, vector<string>& rev_dict, int min_freq) {
         ifstream file(vocab_file);
-        if (!file.good()) {
-            cerr<<"error dict file:"<<vocab_file<<endl;
-            exit(-1);
-        }
+        assert(file.good());
 
         string word;
         int index = 0, freq;

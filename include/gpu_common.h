@@ -24,7 +24,7 @@ namespace seq2seq {
     void focal_loss_bp(const float* input, const float* labels, float* output, int batch,int num_labels,float loss_factor,int pad_id);
 
     void TopK_ff(const float *input, float *output, sort_type type, int size,  float ratio, int pad_id);
-    
+
     void add_at_w_and_u_terms_and_nonlinear(const float* w_terms, const float* u_terms, float* alignment_feats, int seq_len, int batch_size, int alignment_model_size);
 
     void add_at_w_and_u_terms_and_nonlinear_bp(const float* alignment_feats, const float* alignment_feats_diff, float* w_terms_diff, float* u_terms_diff, int seq_len, int batch_size, int alignment_model_size);
@@ -46,17 +46,10 @@ namespace seq2seq {
             const int hidden_size);
 
     void attention_decoder_bp_nonlinear(
-            const float* h_data_tm1,
-            const float* h_diff_t,
-            const float* gate_data_t,
-            const float* pre_gate_data_u_t,
-            float* h_diff_tm1,
-            float* pre_gate_diff_w_t,
-            float* pre_gate_diff_u_t,
-            float* pre_gate_diff_c_t,
+            const float* h_data_tm1, const float* h_diff_t,  const float* gate_data_t, const float* pre_gate_data_u_t,
+            float* h_diff_tm1, float* pre_gate_diff_w_t, float* pre_gate_diff_u_t,  float* pre_gate_diff_c_t,
             float* gate_diff_t,
-            const int batch_size,
-            const int hidden_size);
+            const int batch_size, const int hidden_size);
 
     void copy_for_decoder_h0_data(const float* encoder_hidden_data, float* h0_data, int batch_size, int hidden_size);
     void copy_for_decoder_h0_diff(const float* h0_diff, float* encoder_hidden_diff, int batch_size, int hidden_size);

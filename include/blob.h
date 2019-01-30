@@ -1,6 +1,6 @@
 #ifndef SEQ2SEQ_INCLUDE_BLOB_H
 #define SEQ2SEQ_INCLUDE_BLOB_H
-#include<string>
+#include <string>
 #include <cassert>
 #include "common.h"
 #include "cudnn_util.h"
@@ -33,6 +33,15 @@ namespace seq2seq {
         void show_grad(const string& info = "");
     };
 
+    typedef struct beam_entry {
+        int parent_indices[10];
+        int word_indices[10];
+        const static int _beam_size=10;
+        void init();
+    }beam_entry;
+
+    void inverse_trace(beam_entry* x, int length);
+
     // this can be protected by a shared_ptr
     class GpuMemPtr{
         public:
@@ -51,6 +60,7 @@ namespace seq2seq {
             void* _data;
             DISALLOW_COPY_AND_ASSIGN(GpuMemPtr)
     };
+
 
 }
 #endif

@@ -1,6 +1,5 @@
 #include "data_reader.h"
 #include "init.h"
-// #include "rnn.h"
 #include "model.h"
 #include <gflags/gflags.h>
 #include <sys/stat.h>
@@ -57,7 +56,6 @@ namespace seq2seq{
         encoder_input.malloced();
         decoder_input.malloced();
         decoder_target.malloced();
-
         //start training
         fprintf(stderr, "start training....\n");
 
@@ -98,7 +96,6 @@ namespace seq2seq{
         }
     }
 
-    // TODO: using sampled softmax to reduce gpu memory cosuming on softmax compute
     void run_inference(){
         //===========prepare data============
         DataReader reader;
@@ -118,13 +115,11 @@ namespace seq2seq{
         Seq2SeqModel model;
         model.set_param(reader.source_dict_size(), reader.target_dict_size(), batch_size, FLAGS_emb_size, FLAGS_hidden_size);
         model.init_inference(max_encoder_len, beam_size, FLAGS_is_train);
-        fprintf(stderr, "init ended\n");
 
         if (FLAGS_load_model_dir.size() > 0){
             cerr << "loading models from checkpoints: " << FLAGS_load_model_dir << "\n";
             model.load_model(FLAGS_load_model_dir);
         }
-        std::cerr << "model loaded" << '\n';
 
         Blob encoder_input, decoder_input;
 
@@ -133,23 +128,21 @@ namespace seq2seq{
 
         encoder_input.malloced();
         decoder_input.malloced();
-        std::cerr << "encoder_input decoder_input blob created" << '\n';
 
         bool ret = false;
         while((ret = reader.get_batch(&encoder_input, &decoder_input)) != false){
             model.encode(&encoder_input);
-            beam_entry sentences[max_decoder_len];
-            std::cerr << "start decoding" << '\n';
+            beam_entry* sentences = (beam_entry*) malloc(max_decoder_len * sizeof(beam_entry));
             for(int t = 0 ; t < max_decoder_len; ++t){
-                beam_entry one_entry = beam_entry(beam_size);
-                model.step(&decoder_input, t==0? true : false, beam_size);
-                std::cerr << "t = " << t << " : ";
-                for(int i = 0; i < decoder_input.size() ; ++i){
-                    one_entry.word_dix = decoder_input.host_w[i];
-                    std::cerr << reader._rev_target_dict[decoder_input.host_w[i]] << ' ';
+                std::cerr << "t = " << t << " :\n";
+                beam_entry one_entry = sentences[t];
+                one_entry.init();
+                model.step(&decoder_input, one_entry.parent_indices, one_entry.word_indices, beam_size, t==0? true : false);
+                for(int i = 0; i < beam_size ; ++i){
+                    std::cerr << reader._rev_target_dict[one_entry.word_indices[i]] << ' ' << one_entry.parent_indices[i] << "\n";
+                    decoder_input.host_w[i] = one_entry.word_indices[i];
                 }
-                sentences[i] = one_entry;
-                std::cerr << '\n';
+                decoder_input.copy_w_to_device(); // copy next-step input into the GPU memory
             }
         }
     }
